@@ -15,19 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="..\..\B1530_control_WGFMU\wgfmu.lib" />
+    <ClInclude Include="B1530_control_WGFMU\wgfmu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="B1530_control_WGFMU\wgfmu_control.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\B1530_control_WGFMU\wgfmu_control.cpp">
+    <Library Include="B1530_control_WGFMU\wgfmu.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="B1530_control_WGFMU\wgfmu_control.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\B1530_control_WGFMU\wgfmu_control.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\B1530_control_WGFMU\include\wgfmu.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

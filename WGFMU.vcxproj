@@ -18,6 +18,16 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="B1530_control_WGFMU\wgfmu.h" />
+    <ClInclude Include="B1530_control_WGFMU\wgfmu_control.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="B1530_control_WGFMU\wgfmu.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="B1530_control_WGFMU\wgfmu_control.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -138,16 +148,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <Library Include="..\..\B1530_control_WGFMU\wgfmu.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\B1530_control_WGFMU\wgfmu_control.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\B1530_control_WGFMU\include\wgfmu.h" />
-    <ClInclude Include="..\..\B1530_control_WGFMU\wgfmu_control.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
