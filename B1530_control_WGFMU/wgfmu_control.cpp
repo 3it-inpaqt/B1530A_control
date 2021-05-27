@@ -1,3 +1,10 @@
+//wgfmu_control.cpp
+//Author: Pierre-Antoine Mouny
+//Date: 25/05/2021
+//Universite De Sherbrooke (3IT)
+// Description: Implements multilevel programming for memristors using WGFMU remotely.
+// Core functions of the script (read_resistance, write_resistance and extract_results) can 
+// be reused for other pulsed measurements on memristors.
 //#include <stdafx.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,40 +43,53 @@ int main(){
         //Multilevel programming for all resistance states
         for(int i_state=0; i_state<nb_state; i_state++){
             double R_target = list_resist[i_state];
+            printf("Target resist is %f \n", R_target);
             double Rmax = R_target*(1+tolerance);
             double Rmin = R_target*(1-tolerance);
             double Vp = V_LTP;
             double Vn = V_LTD;
             int c = 0;
             int pulse_number = 0;
-            double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_number);//put input there
+            double pulse_amp = 0;
+            double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp);//put input there
             while(c<stop){
                 if(Rmin<=R_c && R_c<=Rmax){
                     Vp = V_LTP;
                     Vn = V_LTD;
+                    printf("Reached target resistance \n");
+                    pulse_amp = 0;
                     c++;
                 }
-                else if(R_c<Rmin){
-                    write_resistance(Vp, t_pulse, topChannel, bottomChannel);//put input there
-                    Vp=Vp+step_size;
-                    Vn=V_LTD;
-                    c=0; //Could cause issue
-                }
                 else if(R_c>Rmax){
+                    write_resistance(Vp, t_pulse, topChannel, bottomChannel);//put input there
+                    if (Vp < V_max) {
+                        Vp = Vp + step_size;
+                    }
+                    Vn=V_LTD;
+                    pulse_amp = Vp;
+                    printf("Apply positive pulse %f \n", Vp);
+                    //c=0; //Could cause issue
+                }
+                else if(R_c<Rmin){
                     write_resistance(Vn, t_pulse, topChannel, bottomChannel);//put input
-                    Vn=Vn-step_size;
+                    if (Vn > -V_max) {
+                        Vn = Vn - step_size;
+                    }
                     Vp=V_LTP;
-                    c=0; //Could cause issue
+                    pulse_amp = Vn;
+                    printf("Apply negative pulse %f \n", Vn);
+                    //c=0; //Could cause issue
                 }
                 pulse_number++;
-                R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_number);//put input
+                R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp);//put input
+                printf("Measured resistance is %f \n", R_c);
             } 
         }      
     }
     return 0;
 }
 
-double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, int pulse_number) // Pulse voltage output
+double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp) // Pulse voltage output
 {
     // OFFLINE
     //Top electrode
@@ -99,7 +119,7 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
     WGFMU_waitUntilCompleted();
-    double res = extract_results(topChannel, bottomChannel, 0, path_csv, pulse_number);
+    double res = extract_results(topChannel, bottomChannel, 0, path_csv, pulse_amp);
     WGFMU_initialize();
     WGFMU_closeSession();
 
@@ -143,27 +163,34 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 
 //EXPORT A SINGLE VALUE
 //CAREFULL WITH TIME VALUES
-double extract_results(int channelId1, int channelId2, int offset,  const char* fileName, int pulse_number) //extract only a single value
+double extract_results(int channelId1, int channelId2, int offset,  const char* fileName, double pulse_amp) //extract only a single value
 {   int measuredSize, totalSize;
     // For CSV output
-    FILE* fp = fopen(fileName, "w");
+    FILE* fp = fopen(fileName, "a");
     if(fp == NULL){
         printf("Error opening file\n");
-        //exit(1);
+        exit(1);
         }
     if(fp != 0) {
         WGFMU_getMeasureValueSize(channelId2, &measuredSize, &totalSize);
-        double time, value;
+        double time, value, voltage;
         WGFMU_getMeasureValue(channelId2, offset, &time, &value);
-        fprintf(fp, "%d, %.9lf\n", pulse_number, value);
+        WGFMU_getInterpolatedForceValue(channelId1, time, &voltage);
+        double res;
+        if (value < 0) {
+            res = -voltage / value;
         }
+        else {
+            res = voltage / value;
+        }
+        fprintf(fp, "%f;%f \n", pulse_amp, res);
+        printf("Extracted resistance is %f \n", res);
+        return(res);
+    }
     fclose(fp);
-    //FOR RETURN (Single value)
-    WGFMU_getMeasureValueSize(channelId2, &measuredSize, &totalSize);
-    double time, value, voltage;
-    WGFMU_getMeasureValue(channelId2, offset, &time, &value);
-    WGFMU_getInterpolatedForceValue(channelId1, time, &voltage);
-    double res = voltage/value;
-
-    return(res);
 }
+
+//TO DO add limits for max amplitude
+//Implement better convergence
+//Measurement on BB3
+//Need to save pulse amplitude as well
