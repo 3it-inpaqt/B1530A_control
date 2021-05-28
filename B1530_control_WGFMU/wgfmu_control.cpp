@@ -12,6 +12,7 @@
 #include "wgfmu.h"
 #include "wgfmu_control.h"
 #include <math.h>
+#include <time.h>
 
 
 int main() {
@@ -26,9 +27,10 @@ int main() {
     printf("Selected LRS is %f \n", HRS);
     int choice;
     printf("Which measurement? (simple = 1, log = 2) \n");
-    scanf("%d", &choice);;
+    scanf("%d", &choice);
     if (choice == 1) {
         printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
+        const char* timestamp = get_timestamp(choice);
         double step_size;
         printf("Enter step for pulse amplitude: ");
         scanf("%lf", &step_size);
@@ -38,17 +40,18 @@ int main() {
         double V_LTD;
         printf("Enter V_LTD: ");
         scanf("%lf", &V_LTD);
-        simple_convergence(LRS, HRS, V_LTD, V_LTP, step_size);
+        simple_convergence(LRS, HRS, V_LTD, V_LTP, step_size, timestamp);
     }
     else if (choice == 2) {
         printf("Now executing logarithmic multilevel programming of %d resistance states \n", nb_state);
+        const char* timestamp = get_timestamp(choice);
         double V_LTP;
         printf("Enter V_LTP: ");
         scanf("%lf", &V_LTP);
         double V_LTD;
         printf("Enter V_LTD: ");
         scanf("%lf", &V_LTD);
-        log_convergence(LRS, HRS, V_LTD, V_LTP);
+        log_convergence(LRS, HRS, V_LTD, V_LTP, timestamp);
     }
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
@@ -57,7 +60,7 @@ int main() {
     return 0;
 }
 
-double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp) // Pulse voltage output
+double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, const char* file_name) // Pulse voltage output
 {
     // OFFLINE
     //Top electrode
@@ -87,7 +90,7 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
     WGFMU_waitUntilCompleted();
-    double res = extract_results(topChannel, bottomChannel, 0, path_csv, pulse_amp);
+    double res = extract_results(topChannel, bottomChannel, 0, file_name, pulse_amp);
     WGFMU_initialize();
     WGFMU_closeSession();
 
@@ -130,7 +133,6 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 }
 
 //EXPORT A SINGLE VALUE
-//CAREFULL WITH TIME VALUES
 double extract_results(int channelId1, int channelId2, int offset,  const char* fileName, double pulse_amp) //extract only a single value
 {   int measuredSize, totalSize;
     // For CSV output
@@ -158,7 +160,7 @@ double extract_results(int channelId1, int channelId2, int offset,  const char* 
     fclose(fp);
 }
 
-void simple_convergence(double LRS, double HRS, double V_LTD, double V_LTP, double step_size)
+void simple_convergence(double LRS, double HRS, double V_LTD, double V_LTP, double step_size, const char* file_name)
 {
     /*int nb_state;
 printf("Enter number of resistance levels: ");
@@ -178,7 +180,7 @@ scanf("%d", &nb_state);*/
         int c = 0;
         int pulse_number = 0;
         double pulse_amp = 0;
-        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp);//put input there
+        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input there
         while (c < stop) {
             if (Rmin <= R_c && R_c <= Rmax) {
                 Vp = V_LTP;
@@ -208,14 +210,14 @@ scanf("%d", &nb_state);*/
                 //c=0; //Could cause issue
             }
             pulse_number++;
-            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp);//put input
+            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input
             printf("Measured resistance is %f \n", R_c);
         }
     }
     printf("End of simple multilevel programming");
 }
 
-void log_convergence(double LRS, double HRS, double V_LTD, double V_LTP)//Logarithmic multilevel programming
+void log_convergence(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
 {
     /*int nb_state;
 printf("Enter number of resistance levels: ");
@@ -238,7 +240,7 @@ scanf("%d", &nb_state);*/
         int pulse_number = 0;
         double pulse_amp = 0;
         double R_shift = 0;
-        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp);//put input there
+        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input there
         while (c < stop) {
             if (Rmin <= R_c && R_c <= Rmax) {
                 Vp = V_LTP;
@@ -277,7 +279,7 @@ scanf("%d", &nb_state);*/
             }
             pulse_number++;
             R_shift = R_c;
-            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp);
+            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);
             R_shift = R_shift - R_c;
             if (R_shift < 0) {
                 R_shift = -R_shift;
@@ -288,6 +290,33 @@ scanf("%d", &nb_state);*/
     printf("End of simple multilevel programming");
 }
 
-//Implement better convergence
-//Measurement on BB3
-//create timestamp
+const char* get_timestamp(int choice) {
+    time_t rawtime;
+    struct tm* timeinfo;
+    static char buffer[16];
+    static char file_name[100];
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strcpy(file_name, folder_path);
+    strftime(buffer, 16, "%G%m%d%H%M", timeinfo);
+    strcat(file_name, buffer);
+    if (choice == 1) {
+        strcat(file_name, "_simple_convergence.txt");
+    }
+    else if (choice == 2) {
+        strcat(file_name, "_logarithmic_convergence.txt");
+    }
+    else {
+        strcat(file_name, "measurement.txt");
+    }
+    printf("The measurement will be saved as: ");
+    puts(file_name);
+    return file_name;
+}
+
+
+
+//TO DO:
+//Automatic acquistion of LRS and HRS
+//G(V,t) measurements
+//SMU control if possible
