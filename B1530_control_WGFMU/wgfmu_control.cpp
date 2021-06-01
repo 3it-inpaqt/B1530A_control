@@ -26,7 +26,7 @@ int main() {
     scanf("%lf", &HRS);
     printf("Selected LRS is %f \n", HRS);
     int choice;
-    printf("Which measurement? (simple = 1, log = 2) \n");
+    printf("Which measurement? (simple = 1, log = 2, adapt log = 3) \n");
     scanf("%d", &choice);
     if (choice == 1) {
         printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
@@ -53,6 +53,18 @@ int main() {
         scanf("%lf", &V_LTD);
         log_convergence(LRS, HRS, V_LTD, V_LTP, timestamp);
     }
+    else if (choice == 3) {
+        printf("Now executing adaptative logarithmic multilevel programming of %d resistance states \n", nb_state);
+        const char* timestamp = get_timestamp(choice);
+        double V_LTP;
+        printf("Enter V_LTP: ");
+        scanf("%lf", &V_LTP);
+        double V_LTD;
+        printf("Enter V_LTD: ");
+        scanf("%lf", &V_LTD);
+        log_convergence_2(LRS, HRS, V_LTD, V_LTP, timestamp);
+    }
+
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
     }
@@ -139,6 +151,7 @@ double extract_results(int channelId1, int channelId2, int offset,  const char* 
     FILE* fp = fopen(fileName, "a");
     if(fp == NULL){
         printf("Error opening file\n");
+        FILE* fp = fopen(fileName, "a");
         exit(1);
         }
     if(fp != 0) {
@@ -155,9 +168,9 @@ double extract_results(int channelId1, int channelId2, int offset,  const char* 
         }
         fprintf(fp, "%f;%f \n", pulse_amp, res);
         printf("Extracted resistance is %f \n", res);
+        fclose(fp);
         return(res);
     }
-    fclose(fp);
 }
 
 void simple_convergence(double LRS, double HRS, double V_LTD, double V_LTP, double step_size, const char* file_name)
@@ -252,12 +265,15 @@ scanf("%d", &nb_state);*/
                 c++;
             }
             else if (R_c > Rmax) {
-                if (count_p >= increment && R_shift < min_shift * (HRS - LRS)) {
+                if (count_p >= increment && (R_shift < min_shift * (HRS - LRS))) {
                     Vp = Vp+a*log10((R_c - R_target)/R_shift); //Maybe issues 
                     count_p = 0;
                 }
                 else if(R_shift>max_shift*(HRS-LRS)){
                     Vp = V_LTP;
+                }
+                if (Vp > V_max) {
+                    Vp = V_max;
                 }
                 write_resistance(Vp, t_pulse, topChannel, bottomChannel);
                 count_p++;
@@ -271,6 +287,9 @@ scanf("%d", &nb_state);*/
                 }
                 else if (R_shift > max_shift * (HRS - LRS)) {
                     Vn = V_LTD;
+                }
+                if (Vn < -V_max) {
+                    Vn = -V_max;
                 }
                 write_resistance(Vn, t_pulse, topChannel, bottomChannel);
                 count_n++;
@@ -287,7 +306,92 @@ scanf("%d", &nb_state);*/
             printf("Measured resistance is %f \n", R_c);
         }
     }
-    printf("End of simple multilevel programming");
+    printf("End of logarithmic multilevel programming");
+}
+
+void log_convergence_2(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
+{
+    /*int nb_state;
+printf("Enter number of resistance levels: ");
+scanf("%d", &nb_state);*/
+    double list_resist[nb_state];
+    for (int i = 0;i < nb_state;i++) {
+        list_resist[i] = LRS + i * (HRS - LRS) / (nb_state - 1);
+    }
+    //Multilevel programming for all resistance states
+    for (int i_state = 0; i_state < nb_state; i_state++) {
+        double R_target = list_resist[i_state];
+        printf("Target resist is %f \n", R_target);
+        double Rmax = R_target * (1 + tolerance);
+        double Rmin = R_target * (1 - tolerance);
+        double Vp = V_LTP;
+        double Vn = V_LTD;
+        int c = 0;
+        int count_n = 0;
+        int count_p = 0;
+        int pulse_number = 0;
+        double pulse_amp = 0;
+        double R_shift = 0;
+        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input there
+        while (c < stop) {
+            if (Rmin <= R_c && R_c <= Rmax) {
+                Vp = V_LTP;
+                Vn = V_LTD;
+                count_n = 0;
+                count_p = 0;
+                printf("Reached target resistance \n");
+                pulse_amp = 0;
+                c++;
+            }
+            else if (R_c > Rmax) {
+                if (count_p >= increment && R_shift > -min_shift * (HRS - LRS)) {
+                       if (R_shift < 0) {
+                            R_shift = -R_shift;
+                       }
+                    Vp = Vp + a * (R_c/HRS) * log10((R_c - R_target) / R_shift); 
+                    count_p = 0;
+                }
+                else if (R_shift > max_shift * (HRS - LRS)) {
+                    Vp = V_LTP;
+                }
+                if (Vp > V_max) {
+                    Vp = V_max;
+                }
+                write_resistance(Vp, t_pulse, topChannel, bottomChannel);
+                count_p++;
+                pulse_amp = Vp;
+                printf("Apply positive pulse %f \n", Vp);
+            }
+            else if (R_c < Rmin) {
+                if (count_n >= increment && R_shift < min_shift * (HRS - LRS)) {
+                    if (R_shift < 0) {
+                        R_shift = -R_shift;
+                    }
+                    Vn = Vn - a * (R_c / HRS) * log10((R_target - R_c) / R_shift); 
+                    count_n = 0;
+                }
+                else if (R_shift > max_shift * (HRS - LRS)) {
+                    Vn = V_LTD;
+                }
+                if (Vn < -V_max) {
+                    Vn = -V_max;
+                }
+                write_resistance(Vn, t_pulse, topChannel, bottomChannel);
+                count_n++;
+                pulse_amp = Vn;
+                printf("Apply negative pulse %f \n", Vn);
+            }
+            pulse_number++;
+            R_shift = R_c;
+            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);
+            R_shift = R_shift - R_c;
+            //if (R_shift < 0) {
+              //  R_shift = -R_shift;
+            //}
+            printf("Measured resistance is %f \n", R_c);
+        }
+    }
+    printf("End of logarithmic multilevel programming");
 }
 
 const char* get_timestamp(int choice) {
@@ -305,6 +409,9 @@ const char* get_timestamp(int choice) {
     }
     else if (choice == 2) {
         strcat(file_name, "_logarithmic_convergence.txt");
+    }
+    else if (choice == 3) {
+        strcat(file_name, "_adapt_logarithmic_convergence.txt");
     }
     else {
         strcat(file_name, "measurement.txt");
