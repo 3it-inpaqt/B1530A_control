@@ -349,6 +349,7 @@ scanf("%d", &nb_state);*/
                             R_shift = -R_shift;
                        }
                     Vp = Vp + a * (R_c/HRS) * log10((R_c - R_target) / R_shift); 
+                    //Vp = Vp + a * log10((R_c - R_target) / R_shift);
                     count_p = 0;
                 }
                 else if (R_shift > max_shift * (HRS - LRS)) {
@@ -368,6 +369,7 @@ scanf("%d", &nb_state);*/
                         R_shift = -R_shift;
                     }
                     Vn = Vn - a * (R_c / HRS) * log10((R_target - R_c) / R_shift); 
+                    //Vn = Vn - a * log10((R_target - R_c) / R_shift);
                     count_n = 0;
                 }
                 else if (R_shift > max_shift * (HRS - LRS)) {
