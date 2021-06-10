@@ -11,6 +11,7 @@
 #include <Windows.h>
 #include "wgfmu.h"
 #include "wgfmu_control.h"
+//#include <visa.h>
 #include <math.h>
 #include <time.h>
 
@@ -64,6 +65,26 @@ int main() {
         scanf("%lf", &V_LTD);
         log_convergence_2(LRS, HRS, V_LTD, V_LTP, timestamp);
     }
+    else if (choice == 4) {
+        printf("Now executing G(v,t) pulse scanning \n");
+        const char* timestamp = get_timestamp(choice);
+        double V_pulse_min;
+        printf("Enter V_pulse_min: ");
+        scanf("%lf", &V_pulse_min);
+        double V_pulse_max;
+        printf("Enter V_pulse_max: ");
+        scanf("%lf", &V_pulse_max);
+        double list_pulse_amp[pulse_number];
+        if (V_pulse_min > V_pulse_max) {
+            const double temp = V_pulse_min;
+            V_pulse_min = V_pulse_max;
+            V_pulse_max = temp;
+        }
+        for (int i = 0; i < pulse_number; i++) {
+            list_pulse_amp[i] = V_pulse_min + i * (V_pulse_max - V_pulse_min) / (pulse_number - 1);
+        }
+        Gvt(list_time, list_pulse_amp, timestamp);
+    }
 
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
@@ -72,7 +93,7 @@ int main() {
     return 0;
 }
 
-double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, const char* file_name) // Pulse voltage output
+double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name) // Pulse voltage output
 {
     // OFFLINE
     //Top electrode
@@ -102,7 +123,7 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
     WGFMU_waitUntilCompleted();
-    double res = extract_results(topChannel, bottomChannel, 0, file_name, pulse_amp);
+    double res = extract_results(topChannel, bottomChannel, 0, file_name, pulse_amp, pulse_width);
     WGFMU_initialize();
     WGFMU_closeSession();
 
@@ -116,7 +137,7 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
     // OFFLINE
     //Top electrode
 
-    WGFMU_clear(); // 9
+    WGFMU_clear();
     WGFMU_createPattern("pulse", 0); // 0 ms, 0 V
     WGFMU_addVector("pulse", 0.00000001, Vpulse); //10 ns rise time
     WGFMU_addVector("pulse", tpulse-0.00000002, Vpulse);
@@ -132,7 +153,7 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 
 
     // ONLINE
-    WGFMU_openSession("GPIB0::17::INSTR"); //18
+    WGFMU_openSession("GPIB0::17::INSTR"); 
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
@@ -145,7 +166,7 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 }
 
 //EXPORT A SINGLE VALUE
-double extract_results(int channelId1, int channelId2, int offset,  const char* fileName, double pulse_amp) //extract only a single value
+double extract_results(int channelId1, int channelId2, int offset,  const char* fileName, double pulse_amp, double pulse_width) //extract only a single value
 {   int measuredSize, totalSize;
     // For CSV output
     FILE* fp = fopen(fileName, "a");
@@ -166,7 +187,12 @@ double extract_results(int channelId1, int channelId2, int offset,  const char* 
         else {
             res = voltage / value;
         }
-        fprintf(fp, "%f;%f \n", pulse_amp, res);
+        if (pulse_width == 0) {
+            fprintf(fp, "%f;%f \n", pulse_amp, res);
+        }
+        else {
+            fprintf(fp, "%f;%f;%f \n", pulse_amp, pulse_width, res);
+        }
         printf("Extracted resistance is %f \n", res);
         fclose(fp);
         return(res);
@@ -175,9 +201,6 @@ double extract_results(int channelId1, int channelId2, int offset,  const char* 
 
 void simple_convergence(double LRS, double HRS, double V_LTD, double V_LTP, double step_size, const char* file_name)
 {
-    /*int nb_state;
-printf("Enter number of resistance levels: ");
-scanf("%d", &nb_state);*/
     double list_resist[nb_state];
     for (int i = 0;i < nb_state;i++) {
         list_resist[i] = LRS + i * (HRS - LRS) / (nb_state - 1);
@@ -193,7 +216,7 @@ scanf("%d", &nb_state);*/
         int c = 0;
         int pulse_number = 0;
         double pulse_amp = 0;
-        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input there
+        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
         while (c < stop) {
             if (Rmin <= R_c && R_c <= Rmax) {
                 Vp = V_LTP;
@@ -203,7 +226,7 @@ scanf("%d", &nb_state);*/
                 c++;
             }
             else if (R_c > Rmax) {
-                write_resistance(Vp, t_pulse, topChannel, bottomChannel);//put input there
+                write_resistance(Vp, t_pulse, topChannel, bottomChannel);
                 if (Vp < V_max) {
                     Vp = Vp + step_size;
                 }
@@ -213,7 +236,7 @@ scanf("%d", &nb_state);*/
                 //c=0; //Could cause issue
             }
             else if (R_c < Rmin) {
-                write_resistance(Vn, t_pulse, topChannel, bottomChannel);//put input
+                write_resistance(Vn, t_pulse, topChannel, bottomChannel);
                 if (Vn > -V_max) {
                     Vn = Vn - step_size;
                 }
@@ -223,7 +246,7 @@ scanf("%d", &nb_state);*/
                 //c=0; //Could cause issue
             }
             pulse_number++;
-            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input
+            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
             printf("Measured resistance is %f \n", R_c);
         }
     }
@@ -253,7 +276,7 @@ scanf("%d", &nb_state);*/
         int pulse_number = 0;
         double pulse_amp = 0;
         double R_shift = 0;
-        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input there
+        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
         while (c < stop) {
             if (Rmin <= R_c && R_c <= Rmax) {
                 Vp = V_LTP;
@@ -298,7 +321,7 @@ scanf("%d", &nb_state);*/
             }
             pulse_number++;
             R_shift = R_c;
-            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);
+            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
             R_shift = R_shift - R_c;
             if (R_shift < 0) {
                 R_shift = -R_shift;
@@ -332,7 +355,7 @@ scanf("%d", &nb_state);*/
         int pulse_number = 0;
         double pulse_amp = 0;
         double R_shift = 0;
-        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);//put input there
+        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);//put input there
         while (c < stop) {
             if (Rmin <= R_c && R_c <= Rmax) {
                 Vp = V_LTP;
@@ -385,7 +408,7 @@ scanf("%d", &nb_state);*/
             }
             pulse_number++;
             R_shift = R_c;
-            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, file_name);
+            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
             R_shift = R_shift - R_c;
             //if (R_shift < 0) {
               //  R_shift = -R_shift;
@@ -395,6 +418,109 @@ scanf("%d", &nb_state);*/
     }
     printf("End of logarithmic multilevel programming");
 }
+
+void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
+    int size_time =  sizeof(list_time) / sizeof(list_time[0]);
+    //int size_pulse_amp = sizeof(list_pulse_amp) / sizeof(list_pulse_amp[0]);
+    for (int i = 0; i < size_time; i++) {
+        for (int j = 0; j < pulse_number; j++) {
+            if (list_pulse_amp[j] < 0) {
+                DC_sweep(topChannel, bottomChannel, 0, V_set, 2, meas_time, compliance_set); //Set/Reset/Set cycle before applying the pulse
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_reset);
+                DC_sweep(topChannel, bottomChannel, 0, V_set, 2, meas_time, compliance_set);
+                printf("Now applying a writing pulse: %f V duration %f s \n", list_pulse_amp[j], list_time[i]);
+                write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
+                read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i],file_name);
+            }
+            else {
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_reset); //Reset/Set/Reset cycle before applying the pulse
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_set);
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_reset);
+                printf("Now applying a writing pulse: %f V duration %f s \n", list_pulse_amp[j], list_time[i]);
+                write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
+                read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i], file_name);
+            }
+        }
+    }
+}
+
+void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
+    // To do so need read current function
+    double step_time = meas_time / nb_points;
+    double list_voltage[nb_points];
+    double measured_current;
+    if(single == 1) {
+        for (int i = 0;i < nb_points;i++) {
+            list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points - 1);
+        }
+    }
+    else if (single == 2) {
+        for (int i = 0;i < nb_points;i++) {
+            if (i < nb_points / 2) {
+                list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points / 2 - 1);
+            }
+            else {
+                list_voltage[i] = V_max - (i - nb_points / 2) * (V_max - V_min) / (nb_points / 2 - 1);
+            }
+        }
+    }
+    else {
+        exit(1);
+    }
+    for (int i = 0; i < nb_points; i++) {
+        /*if (measured_current > 1E-3) {//add control for compliance
+
+        }*/
+        WGFMU_clear();
+        WGFMU_createPattern("DC_sweep", list_voltage[0]);
+        WGFMU_createPattern("ground", 0);
+        WGFMU_addVector("DC_sweep", 0.00000001, list_voltage[i]); //10 ns rise time
+        WGFMU_addVector("DC_sweep", step_time, list_voltage[i]);
+
+        WGFMU_addVector("ground", 0.00000001, 0);
+        WGFMU_addVector("ground", step_time, 0);
+        WGFMU_addSequence(topChannel, "DC_sweep", 1); //1 stairs sweep output
+        WGFMU_addSequence(bottomChannel, "ground", 1);
+
+        // ONLINE
+        WGFMU_openSession("GPIB0::17::INSTR");
+        WGFMU_initialize();
+        WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+        WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+        WGFMU_connect(topChannel);
+        WGFMU_connect(bottomChannel);
+        WGFMU_execute();
+        WGFMU_waitUntilCompleted();
+        WGFMU_initialize();
+        WGFMU_closeSession();
+    }
+}
+
+/*void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
+    // To do so need read current function
+    double step_time = meas_time / nb_points;
+    double list_voltage[nb_points];
+    double measured_current;
+    if(single == 1) {
+        for (int i = 0;i < nb_points;i++) {
+            list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points - 1);
+        }
+    }
+    else if (single == 2) {
+        for (int i = 0;i < nb_points;i++) {
+            if (i < nb_points / 2) {
+                list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points / 2 - 1);
+            }
+            else {
+                list_voltage[i] = V_max - (i - nb_points / 2) * (V_max - V_min) / (nb_points / 2 - 1);
+            }
+        }
+    }
+    else {
+        exit(1);
+    }
+    
+}*/
 
 const char* get_timestamp(int choice) {
     time_t rawtime;
@@ -415,6 +541,9 @@ const char* get_timestamp(int choice) {
     else if (choice == 3) {
         strcat(file_name, "_adapt_logarithmic_convergence.txt");
     }
+    else if (choice == 4) {
+        strcat(file_name, "_Gvt_pulsing.txt");
+    }
     else {
         strcat(file_name, "measurement.txt");
     }
@@ -426,6 +555,5 @@ const char* get_timestamp(int choice) {
 
 
 //TO DO:
-//Automatic acquistion of LRS and HRS
+//Automatic acquistion of LRS and HRS Code is their just need to implement it (really needed???)
 //G(V,t) measurements
-//SMU control if possible
