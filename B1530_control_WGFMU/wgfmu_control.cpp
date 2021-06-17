@@ -11,7 +11,7 @@
 #include <Windows.h>
 #include "wgfmu.h"
 #include "wgfmu_control.h"
-//#include <visa.h>
+#include <visa.h>
 #include <math.h>
 #include <time.h>
 
@@ -420,107 +420,69 @@ scanf("%d", &nb_state);*/
 }
 
 void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
-    int size_time =  sizeof(list_time) / sizeof(list_time[0]);
+    int size_time = 21;
     //int size_pulse_amp = sizeof(list_pulse_amp) / sizeof(list_pulse_amp[0]);
     for (int i = 0; i < size_time; i++) {
         for (int j = 0; j < pulse_number; j++) {
             if (list_pulse_amp[j] < 0) {
-                DC_sweep(topChannel, bottomChannel, 0, V_set, 2, meas_time, compliance_set); //Set/Reset/Set cycle before applying the pulse
-                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_reset);
-                DC_sweep(topChannel, bottomChannel, 0, V_set, 2, meas_time, compliance_set);
+                DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_set); //Set/Reset/Set cycle before applying the pulse
+                Sleep(1);
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset);
+                Sleep(1);
+                DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_set);
+                Sleep(1);
                 printf("Now applying a writing pulse: %f V duration %f s \n", list_pulse_amp[j], list_time[i]);
                 write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
+                Sleep(1);
                 read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i],file_name);
+                Sleep(1);
             }
             else {
-                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_reset); //Reset/Set/Reset cycle before applying the pulse
-                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_set);
-                DC_sweep(topChannel, bottomChannel, 0, V_reset, 2, meas_time, compliance_reset);
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset); //Reset/Set/Reset cycle before applying the pulse
+                Sleep(1);
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_set);
+                Sleep(1);
+                DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset);
+                Sleep(1);
                 printf("Now applying a writing pulse: %f V duration %f s \n", list_pulse_amp[j], list_time[i]);
                 write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
+                Sleep(1);
                 read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i], file_name);
+                Sleep(1);
             }
         }
     }
 }
 
 void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
-    // To do so need read current function
-    double step_time = meas_time / nb_points;
-    double list_voltage[nb_points];
-    double measured_current;
-    if(single == 1) {
-        for (int i = 0;i < nb_points;i++) {
-            list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points - 1);
-        }
-    }
-    else if (single == 2) {
-        for (int i = 0;i < nb_points;i++) {
-            if (i < nb_points / 2) {
-                list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points / 2 - 1);
-            }
-            else {
-                list_voltage[i] = V_max - (i - nb_points / 2) * (V_max - V_min) / (nb_points / 2 - 1);
-            }
-        }
+    //If single=1 doing a single if single=3 doing a double (from V_min to V_max back to V_min)
+    if (single == 1 || single == 3) {
+        ViSession defaultRM;
+        ViSession vi;
+        viOpenDefaultRM(&defaultRM);
+        viOpen(defaultRM, "GPIB0::17::INSTR", VI_NULL, VI_NULL, &vi); //Connect to B1500
+        viPrintf(vi, "CN 2\n"); //Enable SMU of channel 201
+        viPrintf(vi, "CN 3\n"); //Enable SMU of channel 202
+        //viPrintf(vi, "MM 16,201,202\n"); //Mulit-channel sweep
+        viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
+        viPrintf(vi, "DV 3,0,0,0.001\n");//Force 0V with compliance 1mA
+        viPrintf(vi, "MM 2,2\n"); //Operation mode to staircase sweep measurements
+        //viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
+        viPrintf(vi, "WM 2,1\n");
+        static char staircase;
+        sprintf(&staircase, "WV 2,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
+        ViConstString Vistaircase = &staircase;
+        viPrintf(vi, Vistaircase); //Staircase measurement
+        viPrintf(vi, "CL 2\n"); //Disable SMU of channel 201
+        viPrintf(vi, "CL 3\n"); //Disable SMU of channel 202
+        viClose(vi);
+        viClose(defaultRM);
     }
     else {
-        exit(1);
-    }
-    for (int i = 0; i < nb_points; i++) {
-        /*if (measured_current > 1E-3) {//add control for compliance
-
-        }*/
-        WGFMU_clear();
-        WGFMU_createPattern("DC_sweep", list_voltage[0]);
-        WGFMU_createPattern("ground", 0);
-        WGFMU_addVector("DC_sweep", 0.00000001, list_voltage[i]); //10 ns rise time
-        WGFMU_addVector("DC_sweep", step_time, list_voltage[i]);
-
-        WGFMU_addVector("ground", 0.00000001, 0);
-        WGFMU_addVector("ground", step_time, 0);
-        WGFMU_addSequence(topChannel, "DC_sweep", 1); //1 stairs sweep output
-        WGFMU_addSequence(bottomChannel, "ground", 1);
-
-        // ONLINE
-        WGFMU_openSession("GPIB0::17::INSTR");
-        WGFMU_initialize();
-        WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-        WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-        WGFMU_connect(topChannel);
-        WGFMU_connect(bottomChannel);
-        WGFMU_execute();
-        WGFMU_waitUntilCompleted();
-        WGFMU_initialize();
-        WGFMU_closeSession();
+        printf("out");
+        exit(0);
     }
 }
-
-/*void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
-    // To do so need read current function
-    double step_time = meas_time / nb_points;
-    double list_voltage[nb_points];
-    double measured_current;
-    if(single == 1) {
-        for (int i = 0;i < nb_points;i++) {
-            list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points - 1);
-        }
-    }
-    else if (single == 2) {
-        for (int i = 0;i < nb_points;i++) {
-            if (i < nb_points / 2) {
-                list_voltage[i] = V_min + i * (V_max - V_min) / (nb_points / 2 - 1);
-            }
-            else {
-                list_voltage[i] = V_max - (i - nb_points / 2) * (V_max - V_min) / (nb_points / 2 - 1);
-            }
-        }
-    }
-    else {
-        exit(1);
-    }
-    
-}*/
 
 const char* get_timestamp(int choice) {
     time_t rawtime;
