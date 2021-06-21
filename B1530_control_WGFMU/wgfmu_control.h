@@ -27,6 +27,7 @@ static const char* path_csv = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\
 static const int topChannel = 101;//physical channel of WGFMU used by the probe tip placed on the top electrode
 static const int bottomChannel = 102;//physical channel of WGFMU used by the probe tip placed on the bottom electrode
 static const int nb_points = 800; //Should be an even number
+static const int sleep_time = 1; //Time between two DC sweep (waiting for the measurement to end) in ms
 static const double V_set = 1.1; // Set voltage (DC sweep)
 static const double V_reset = -1.5; //Reset voltage (DC sweep)
 static const double compliance_set = 1E-3; //Compliance current used in DC sweeps in set operations

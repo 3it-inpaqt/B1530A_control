@@ -27,7 +27,7 @@ int main() {
     scanf("%lf", &HRS);
     printf("Selected LRS is %f \n", HRS);
     int choice;
-    printf("Which measurement? (simple = 1, log = 2, adapt log = 3) \n");
+    printf("Which measurement? (simple = 1, log = 2, adapt log = 3, Gvt = 4) \n");
     scanf("%d", &choice);
     if (choice == 1) {
         printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
@@ -114,7 +114,7 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_addSequence(bottomChannel, "meas", 1); //1 "pulse" output
 
     // ONLINE
-    WGFMU_openSession("GPIB0::17::INSTR"); //18
+    /*WGFMU_openSession("GPIB0::17::INSTR"); //18
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
@@ -122,10 +122,11 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
-    WGFMU_waitUntilCompleted();
+    WGFMU_waitUntilCompleted();*/
+    puts(file_name);
     double res = extract_results(topChannel, bottomChannel, 0, file_name, pulse_amp, pulse_width);
-    WGFMU_initialize();
-    WGFMU_closeSession();
+    /*WGFMU_initialize();
+    WGFMU_closeSession();*/
 
     return res;
 }
@@ -191,7 +192,7 @@ double extract_results(int channelId1, int channelId2, int offset,  const char* 
             fprintf(fp, "%f;%f \n", pulse_amp, res);
         }
         else {
-            fprintf(fp, "%f;%f;%f \n", pulse_amp, pulse_width, res);
+            fprintf(fp, "%f;%e;%f \n", pulse_amp, pulse_width, res);
         }
         printf("Extracted resistance is %f \n", res);
         fclose(fp);
@@ -426,12 +427,12 @@ void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
         for (int j = 0; j < pulse_number; j++) {
             if (list_pulse_amp[j] < 0) {
                 DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_set); //Set/Reset/Set cycle before applying the pulse
-                Sleep(1);
+                Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset);
-                Sleep(1);
+                Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_set);
-                Sleep(1);
-                printf("Now applying a writing pulse: %f V duration %f s \n", list_pulse_amp[j], list_time[i]);
+                Sleep(sleep_time);
+                printf("Now applying a writing pulse: %f V duration %e s \n", list_pulse_amp[j], list_time[i]);
                 write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
                 Sleep(1);
                 read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i],file_name);
@@ -439,12 +440,12 @@ void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
             }
             else {
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset); //Reset/Set/Reset cycle before applying the pulse
-                Sleep(1);
+                Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_set);
-                Sleep(1);
+                Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset);
-                Sleep(1);
-                printf("Now applying a writing pulse: %f V duration %f s \n", list_pulse_amp[j], list_time[i]);
+                Sleep(sleep_time);
+                printf("Now applying a writing pulse: %f V duration %e s \n", list_pulse_amp[j], list_time[i]);
                 write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
                 Sleep(1);
                 read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i], file_name);
@@ -469,9 +470,9 @@ void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int 
         viPrintf(vi, "MM 2,2\n"); //Operation mode to staircase sweep measurements
         //viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
         viPrintf(vi, "WM 2,1\n");
-        static char staircase;
-        sprintf(&staircase, "WV 2,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
-        ViConstString Vistaircase = &staircase;
+        static char staircase[100];
+        sprintf(staircase, "WV 2,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
+        ViConstString Vistaircase = staircase;
         viPrintf(vi, Vistaircase); //Staircase measurement
         viPrintf(vi, "CL 2\n"); //Disable SMU of channel 201
         viPrintf(vi, "CL 3\n"); //Disable SMU of channel 202
@@ -513,9 +514,3 @@ const char* get_timestamp(int choice) {
     puts(file_name);
     return file_name;
 }
-
-
-
-//TO DO:
-//Automatic acquistion of LRS and HRS Code is their just need to implement it (really needed???)
-//G(V,t) measurements
