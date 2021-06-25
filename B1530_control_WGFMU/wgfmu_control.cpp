@@ -114,7 +114,7 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_addSequence(bottomChannel, "meas", 1); //1 "pulse" output
 
     // ONLINE
-    /*WGFMU_openSession("GPIB0::17::INSTR"); //18
+    WGFMU_openSession("GPIB0::17::INSTR"); //18
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
@@ -122,12 +122,10 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
-    WGFMU_waitUntilCompleted();*/
-    puts(file_name);
+    WGFMU_waitUntilCompleted();
     double res = extract_results(topChannel, bottomChannel, 0, file_name, pulse_amp, pulse_width);
-    /*WGFMU_initialize();
-    WGFMU_closeSession();*/
-
+    WGFMU_initialize();
+    WGFMU_closeSession();
     return res;
 }
 
@@ -427,11 +425,11 @@ void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
         for (int j = 0; j < pulse_number; j++) {
             if (list_pulse_amp[j] < 0) {
                 DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_set); //Set/Reset/Set cycle before applying the pulse
-                Sleep(sleep_time);
+                //Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset);
-                Sleep(sleep_time);
+                //Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_set);
-                Sleep(sleep_time);
+                //Sleep(sleep_time);
                 printf("Now applying a writing pulse: %f V duration %e s \n", list_pulse_amp[j], list_time[i]);
                 write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
                 Sleep(1);
@@ -440,11 +438,11 @@ void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
             }
             else {
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset); //Reset/Set/Reset cycle before applying the pulse
-                Sleep(sleep_time);
+                //Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_set);
-                Sleep(sleep_time);
+                //Sleep(sleep_time);
                 DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_reset);
-                Sleep(sleep_time);
+                //Sleep(sleep_time);
                 printf("Now applying a writing pulse: %f V duration %e s \n", list_pulse_amp[j], list_time[i]);
                 write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
                 Sleep(1);
@@ -474,6 +472,7 @@ void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int 
         sprintf(staircase, "WV 2,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
         ViConstString Vistaircase = staircase;
         viPrintf(vi, Vistaircase); //Staircase measurement
+        Sleep(sleep_time);
         viPrintf(vi, "CL 2\n"); //Disable SMU of channel 201
         viPrintf(vi, "CL 3\n"); //Disable SMU of channel 202
         viClose(vi);
