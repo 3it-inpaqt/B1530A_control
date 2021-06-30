@@ -27,7 +27,7 @@ int main() {
     scanf("%lf", &HRS);
     printf("Selected LRS is %f \n", HRS);
     int choice;
-    printf("Which measurement? (simple = 1, log = 2, adapt log = 3, Gvt = 4) \n");
+    printf("Which measurement? (simple = 1, log = 2, adapt log = 3, Gvt = 4, data driven = 5) \n");
     scanf("%d", &choice);
     if (choice == 1) {
         printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
@@ -85,6 +85,37 @@ int main() {
         }
         Gvt(list_time, list_pulse_amp, timestamp);
     }
+    else if (choice == 5) {
+        printf("Now executing measurement for data driven model fitting \n", nb_state);
+        const char* timestamp = get_timestamp(choice);
+        double V_pulse_min;
+        printf("Enter V_min: ");
+        scanf("%lf", &V_pulse_min);
+        double V_pulse_max;
+        printf("Enter V_max: ");
+        scanf("%lf", &V_pulse_max);
+        double width_pulse;
+        printf("Enter pulse width (scientific notation): ");
+        scanf("%lf", &width_pulse);
+        int pulse_train;
+        printf("Enter desired number of pulse: ");
+        scanf("%d", &pulse_train);
+        data_driven_fitting(V_pulse_min, V_pulse_max, t_pulse, pulse_train, timestamp);
+    }
+    else if (choice == 6) {
+        printf("Now executing measurement for set/reset\n");
+        double V;
+        printf("Enter V: ");
+        scanf("%lf", &V);
+        double compliance;
+        if (V > 0) {
+            compliance = compliance_set;
+        }
+        else {
+            compliance = compliance_reset;
+        }
+        DC_sweep(topChannel, bottomChannel, 0, V, 3, meas_time, compliance);
+    }
 
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
@@ -123,7 +154,7 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
     WGFMU_waitUntilCompleted();
-    double res = extract_results(topChannel, bottomChannel, 0, file_name, pulse_amp, pulse_width);
+    double res = extract_results(topChannel, bottomChannel, 0, pulse_amp, pulse_width, file_name);
     WGFMU_initialize();
     WGFMU_closeSession();
     return res;
@@ -165,7 +196,7 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 }
 
 //EXPORT A SINGLE VALUE
-double extract_results(int channelId1, int channelId2, int offset,  const char* fileName, double pulse_amp, double pulse_width) //extract only a single value
+double extract_results(int channelId1, int channelId2, int offset, double pulse_amp, double pulse_width, const char* fileName) //extract only a single value
 {   int measuredSize, totalSize;
     // For CSV output
     FILE* fp = fopen(fileName, "a");
@@ -254,9 +285,6 @@ void simple_convergence(double LRS, double HRS, double V_LTD, double V_LTP, doub
 
 void log_convergence(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
 {
-    /*int nb_state;
-printf("Enter number of resistance levels: ");
-scanf("%d", &nb_state);*/
     double list_resist[nb_state];
     for (int i = 0;i < nb_state;i++) {
         list_resist[i] = LRS + i * (HRS - LRS) / (nb_state - 1);
@@ -333,9 +361,6 @@ scanf("%d", &nb_state);*/
 
 void log_convergence_2(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
 {
-    /*int nb_state;
-printf("Enter number of resistance levels: ");
-scanf("%d", &nb_state);*/
     double list_resist[nb_state];
     for (int i = 0;i < nb_state;i++) {
         list_resist[i] = LRS + i * (HRS - LRS) / (nb_state - 1);
@@ -420,7 +445,6 @@ scanf("%d", &nb_state);*/
 
 void Gvt(double list_time[], double list_pulse_amp[], const char* file_name) {
     int size_time = 21;
-    //int size_pulse_amp = sizeof(list_pulse_amp) / sizeof(list_pulse_amp[0]);
     for (int i = 0; i < size_time; i++) {
         for (int j = 0; j < pulse_number; j++) {
             if (list_pulse_amp[j] < 0) {
@@ -460,21 +484,20 @@ void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int 
         ViSession vi;
         viOpenDefaultRM(&defaultRM);
         viOpen(defaultRM, "GPIB0::17::INSTR", VI_NULL, VI_NULL, &vi); //Connect to B1500
-        viPrintf(vi, "CN 2\n"); //Enable SMU of channel 201
-        viPrintf(vi, "CN 3\n"); //Enable SMU of channel 202
+        viPrintf(vi, "CN\n"); //Enable SMU of channel 201
+        //viPrintf(vi, "CN 301\n"); //Enable SMU of channel 202
         //viPrintf(vi, "MM 16,201,202\n"); //Mulit-channel sweep
-        viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
-        viPrintf(vi, "DV 3,0,0,0.001\n");//Force 0V with compliance 1mA
-        viPrintf(vi, "MM 2,2\n"); //Operation mode to staircase sweep measurements
         //viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
-        viPrintf(vi, "WM 2,1\n");
+        //viPrintf(vi, "DV 3,0,0,0.001\n");//Force 0V with compliance 1mA
+        viPrintf(vi, "MM 2,201\n"); //Operation mode to staircase sweep measurements
+        //viPrintf(vi, "WM 2,1\n");
         static char staircase[100];
-        sprintf(staircase, "WV 2,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
-        ViConstString Vistaircase = staircase;
-        viPrintf(vi, Vistaircase); //Staircase measurement
+        //sprintf(staircase, "WV 2,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
+        //ViConstString Vistaircase = staircase;
+        viPrintf(vi, "WV 201,3,0,0,-1.5,400,0.01\n"); //Staircase measurement
         Sleep(sleep_time);
-        viPrintf(vi, "CL 2\n"); //Disable SMU of channel 201
-        viPrintf(vi, "CL 3\n"); //Disable SMU of channel 202
+        viPrintf(vi, "CL\n"); //Disable SMU of channel 201
+        //viPrintf(vi, "CL 301\n"); //Disable SMU of channel 202
         viClose(vi);
         viClose(defaultRM);
     }
@@ -482,6 +505,36 @@ void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int 
         printf("out");
         exit(0);
     }
+}
+
+void data_driven_fitting(double V_pulse_min, double V_pulse_max, double t_pulse, int pulse_train, const char* file_name) {
+    for (int i = 0; i < pulse_number; i++) {
+        double polarity = 1;
+        for (int j = 0; j < pulse_train; j++) {
+            double Vpulse = polarity * (V_pulse_min + i * ((V_pulse_max - V_pulse_min) / pulse_number));
+            write_resistance(Vpulse, t_pulse, topChannel, bottomChannel);
+            read_resistance(Vr, t_read, topChannel, bottomChannel, Vpulse, t_pulse, file_name);
+            if (polarity == 1 && j == pulse_train - 1) {
+                polarity = -1;
+                j = 0;
+            }
+        }
+        /*//Create pulse pattern
+        double Vpulse = V_pulse_min + i * ((V_pulse_max - V_pulse_min) / pulse_number);
+        WGFMU_addVector("pulse", 0.00000001, Vpulse); //10 ns rise time
+        WGFMU_addVector("pulse", t_pulse - 0.00000002, Vpulse);
+        WGFMU_addVector("pulse", 0.00000001, 0); //10 ns fall time, 0 V
+        WGFMU_addSequence(topChannel, "pulse", pulse_train); //1 pulse output A verifier peut être obliger de faire double loop et un seul addSequence à la fin
+
+        //Bottom electrode
+        WGFMU_addVector("ground", 0.00000001, 0);
+        WGFMU_addVector("ground", t_pulse - 0.00000002, 0);
+        WGFMU_addVector("ground", 0.00000001, 0);
+        WGFMU_addSequence(bottomChannel, "ground", pulse_train); //1 "pulse" output*/
+    }
+    /*DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_set); //Hard reset cycle before applying the pulses
+    DC_sweep(topChannel, bottomChannel, 0, V_set, 3, meas_time, compliance_reset);
+    DC_sweep(topChannel, bottomChannel, 0, V_reset, 3, meas_time, compliance_set);*/
 }
 
 const char* get_timestamp(int choice) {
@@ -505,6 +558,9 @@ const char* get_timestamp(int choice) {
     }
     else if (choice == 4) {
         strcat(file_name, "_Gvt_pulsing.txt");
+    }
+    else if (choice == 5) {
+        strcat(file_name, "_data_driven_fitting.txt");
     }
     else {
         strcat(file_name, "measurement.txt");
