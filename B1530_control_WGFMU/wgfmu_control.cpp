@@ -187,6 +187,7 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureCurrentRange(topChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
@@ -555,7 +556,7 @@ void WGFMU_DC_sweep(int topChannel, int bottomChannel, double V_min, double V_ma
     }
     WGFMU_addSequence(topChannel, "staircase", 1);
     WGFMU_addSequence(bottomChannel, "ground", 1);
-    WGFMU_setMeasureCurrentRange(topChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA); //set some kind of compliance (not available on wgfmu)
+    WGFMU_setMeasureCurrentRange(topChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
     WGFMU_openSession("GPIB0::17::INSTR");
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
@@ -571,47 +572,55 @@ void WGFMU_DC_sweep(int topChannel, int bottomChannel, double V_min, double V_ma
 void data_driven_fitting(double V_pulse_min, double V_pulse_max, double t_pulse, int pulse_train, const char* file_name) {
     //create pattern
     WGFMU_clear();
-    WGFMU_createPattern("pulse", 0);
-    WGFMU_createPattern("ground", 0);
-    double time = 0;
-    for (int i = 0; i < pulse_number; i++) {
-        double polarity = 1;
-        for (int j = 0; j < pulse_train; j++) {
-            double Vpulse = polarity * (V_pulse_min + i * ((V_pulse_max - V_pulse_min) / pulse_number));
-            //Apply writing pulse
-            WGFMU_addVector("pulse", 0.00000001, Vpulse); //10 ns rise time
-            WGFMU_addVector("pulse", t_pulse - 0.00000002, Vpulse);
-            WGFMU_addVector("pulse", 0.00000001, 0); //10 ns fall time, 0 V
+    double polarity = 1;
+    for (int i = 0; i < 2*pulse_number; i++) {
+        char top_name[100];
+        char bottom_name[100];
+        char meas_event[100];
+        sprintf(top_name, "pulse_%d", i);
+        sprintf(bottom_name, "ground_%d", i);
+        sprintf(meas_event, "Imeas_%d", i);
+        WGFMU_createPattern(top_name, 0);
+        WGFMU_createPattern(bottom_name, 0);
+        if (i % 2 == 0) {
+            polarity = 1;
+        }
+        else {
+            polarity = -1;
+        }
+        int coeff = i / 2;
+        double Vpulse = polarity * (V_pulse_min + coeff * ((V_pulse_max - V_pulse_min) / (pulse_number-1)));
+        printf("%lf \n", Vpulse);
+        //Apply writing pulse
+        WGFMU_addVector(top_name, 0.00000001, Vpulse); //10 ns rise time
+        WGFMU_addVector(top_name, t_pulse - 0.00000002, Vpulse);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
 
-            WGFMU_addVector("ground", 0.00000001, 0);
-            WGFMU_addVector("ground", t_pulse - 0.00000002, 0);
-            WGFMU_addVector("ground", 0.00000001, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_addVector(bottom_name, t_pulse - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
             
-            //Apply reading pulse
-            WGFMU_addVector("pulse", 0.00000001, Vr);
-            WGFMU_addVector("pulse", t_read - 0.00000002, Vr);
-            WGFMU_addVector("pulse", 0.00000001, 0); //10 ns fall time, 0 V
+        //Apply reading pulse
+        WGFMU_addVector(top_name, 0.00000001, Vr);
+        WGFMU_addVector(top_name, t_read - 0.00000002, Vr);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
 
-            time = time + t_pulse;
-            WGFMU_addVector("ground", 0.00000001, 0); //10 ns rise time, 1 V
-            WGFMU_addVector("ground", t_read - 0.00000002, 0);
-            WGFMU_addVector("ground", 0.00000001, 0);
-            WGFMU_setMeasureEvent("ground", "Imeas", time + 0.00000001, 1, t_read - 0.00000002, t_read - 0.00000002, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
-            time = time + t_read;
-            if (polarity == 1 && j == pulse_train - 1) {
-                polarity = -1;
-                j = 0;
-            }
-        }//Check if measureEvent good
+        WGFMU_addVector(bottom_name, 0.00000001, 0); //10 ns rise time, 1 V
+        WGFMU_addVector(bottom_name, t_read - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_setMeasureEvent(bottom_name, meas_event, t_pulse + 0.00000001, 1, t_read - 0.00000004, t_read - 0.00000004, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+
+        //Check if measureEvent good
+        WGFMU_addSequence(topChannel, top_name, pulse_train);
+        WGFMU_addSequence(bottomChannel, bottom_name, pulse_train);
     }
-    WGFMU_addSequence(topChannel, "pulse", 1);
-    WGFMU_addSequence(bottomChannel, "ground", 1);
 
-    WGFMU_openSession("GPIB0::17::INSTR"); //18
+    WGFMU_openSession("GPIB0::17::INSTR"); 
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    WGFMU_setMeasureCurrentRange(topChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
@@ -619,8 +628,8 @@ void data_driven_fitting(double V_pulse_min, double V_pulse_max, double t_pulse,
     FILE* fp = fopen(file_name, "w");
     if (fp != 0) {
         fprintf(fp, "V_min; V_max; number of amplitudes; number of pulses; pulse width\n");
-        fprintf(fp, "%.9lf, %.9lf, %d, %d, %.9lf\n",V_pulse_min, V_pulse_max, pulse_number, pulse_train, t_pulse);
-        fprintf(fp, "time, voltage, current, resistance\n");
+        fprintf(fp, "%.9lf; %.9lf; %d; %d; %.9lf\n",V_pulse_min, V_pulse_max, pulse_number, pulse_train, t_pulse);
+        fprintf(fp, "time; voltage; current; resistance\n");
         int measuredSize, totalSize;
         WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
         for (int i = 0; i < measuredSize; i++) {

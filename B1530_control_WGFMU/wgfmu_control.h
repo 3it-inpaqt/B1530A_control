@@ -34,5 +34,5 @@ static const double V_reset = -1.8; //Reset voltage (DC sweep)
 static const double compliance_set = 0.001; //Compliance current used in DC sweeps in set operations
 static const double compliance_reset = 0.01; //Compliance current used in DC sweeps in reset operations not necessary but used as a security
 static const double meas_time = 10; //Duration in second of the DC sweep
-static const int pulse_number = 4; //Number of pulse amplitudes to test for G(V,t) measurements or data driven model
+static const int pulse_number = 6; //Number of pulse amplitudes to test for G(V,t) measurements or data driven model
 static double list_time[21] = {3E-8, 5E-8, 7E-8, 3E-7, 5E-7, 7E-7, 3E-6, 5E-6, 7E-6, 3E-5, 5E-5, 7E-5, 3E-4, 5E-4, 7E-4, 3E-3, 5E-3, 7E-3, 3E-2, 5E-2, 7E-2 }; // list pulse width for G(V,t) measurements
