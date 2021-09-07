@@ -131,6 +131,30 @@ int main() {
         simple_triangle_convergence(LRS, HRS, V_LTD, V_LTP, step_size, timestamp);
     }
 
+    else if (choice == 8) {
+    printf("Now executing write variability measurements\n");
+    double V_write_pos;
+    printf("Enter V_write_pos: ");
+    scanf("%lf", &V_write_pos);
+    double V_write_neg;
+    printf("Enter V_write_neg: ");
+    scanf("%lf", &V_write_neg);
+    double R_min;
+    printf("Enter R_min: ");
+    scanf("%lf", &R_min);
+    double R_max;
+    printf("Enter R_max: ");
+    scanf("%lf", &R_max);
+    int nb_meas;
+    printf("Enter number of measurements: ");
+    scanf("%d", &nb_meas);
+    double resistance = R_min;
+    for (int i = 0; i < nb_meas; i++) {
+        const char* timestamp = get_timestamp((int)resistance);
+        write_variability_pulse_number(R_max, R_min, V_write_neg, V_write_pos, timestamp, nb_meas);
+    }
+    }
+
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
     }
@@ -244,6 +268,64 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
     WGFMU_closeSession();
 }
 
+double apply_pulse_new(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name, int save, int measure) // Pulse voltage output
+{
+
+    WGFMU_clear(); // 9
+    WGFMU_createPattern("pulse", 0); // 0 ms, 0 V
+    WGFMU_addVector("pulse", 0.00000001, Vpulse); //10 ns rise time, 1 V
+    WGFMU_addVector("pulse", tpulse - 0.00000002, Vpulse);
+    WGFMU_addVector("pulse", 0.00000001, 0); //10 ns fall time, 0 V
+    WGFMU_addSequence(topChannel, "pulse", 1); //1 pulse output
+
+    //Bottom electrode
+    WGFMU_createPattern("meas", 0); // 0 ms, 0 V
+    WGFMU_addVector("meas", 0.00000001, 0); //10 ns rise time, 1 V
+    WGFMU_addVector("meas", tpulse - 0.00000002, 0);
+    WGFMU_addVector("meas", 0.00000001, 0); //10 ns fall time, 0 V
+    if (measure == 0) {
+        WGFMU_setMeasureEvent("meas", "Imeas", 0.00000001, 1, tpulse - 0.00000002, tpulse - 0.00000002, WGFMU_MEASURE_EVENT_DATA_AVERAGED); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
+    }
+  
+    WGFMU_addSequence(bottomChannel, "meas", 1); //1 "pulse" output
+
+    WGFMU_execute();
+    WGFMU_waitUntilCompleted();
+    if (measure == 0) {
+        int measuredSize, totalSize;
+        WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+        double time, value, voltage;
+        WGFMU_getMeasureValue(bottomChannel, measuredSize -1, &time, &value);
+        WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
+        double res;
+        if (value < 0) {
+            res = -voltage / value;
+        }
+        else {
+            res = voltage / value;
+        }
+        if (save == 0) {
+            FILE* fp = fopen(file_name, "a");
+            if (fp == NULL) {
+                printf("Error opening file\n");
+                FILE* fp = fopen(file_name, "a");
+                exit(1);
+            }
+            if (fp != 0) {
+                if (pulse_width == 0) {
+                    fprintf(fp, "%f;%f \n", pulse_amp, res);
+                }
+                else {
+                    fprintf(fp, "%f;%e;%f \n", pulse_amp, pulse_width, res);
+                }
+                printf("Extracted resistance is %f \n", res);
+                fclose(fp);
+            }
+        }
+        return res;
+    }
+}
+
 double extract_results(int channelId1, int channelId2, int offset, double pulse_amp, double pulse_width, const char* fileName) //extract only a single value
 {   int measuredSize, totalSize;
     // For CSV output
@@ -329,6 +411,59 @@ void simple_convergence(double LRS, double HRS, double V_LTD, double V_LTP, doub
         }
     }
     printf("End of simple multilevel programming");
+}
+
+void converge_to_target(double R_target, double tol, double V_LTD, double V_LTP, double step_size, const char* file_name, int stop_read, int save)
+{
+    WGFMU_openSession("GPIB0::17::INSTR"); //18
+    WGFMU_initialize();
+    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
+    WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    WGFMU_connect(topChannel);
+    WGFMU_connect(bottomChannel);
+    printf("Target resist is %f \n", R_target);
+    double Rmax = R_target * (1 + tol);
+    double Rmin = R_target * (1 - tol);
+    double Vp = V_LTP;
+    double Vn = V_LTD;
+    int c = 0;
+    int pulse_number = 0;
+    double pulse_amp = 0;
+    double R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name, 1, 0);
+    while (c < stop_read) {
+        if (Rmin <= R_c && R_c <= Rmax) {
+            Vp = V_LTP;
+            Vn = V_LTD;
+            printf("Reached target resistance \n");
+            pulse_amp = 0;
+            c++;
+        }
+        else if (R_c > Rmax) {
+            apply_pulse_new(Vp, t_pulse, topChannel, bottomChannel, pulse_amp, 0, file_name, 1, 1);
+            if (Vp < V_max) {
+                Vp = Vp + step_size;
+            }
+            Vn = V_LTD;
+            pulse_amp = Vp;
+            printf("Apply positive pulse %f \n", Vp);
+        }
+        else if (R_c < Rmin) {
+            apply_pulse_new(Vn, t_pulse, topChannel, bottomChannel, pulse_amp, 0, file_name, 1, 1);
+            if (Vn > -V_max) {
+                Vn = Vn - step_size;
+            }
+            Vp = V_LTP;
+            pulse_amp = Vn;
+            printf("Apply negative pulse %f \n", Vn);
+        }
+        pulse_number++;
+        R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name, save, 0);
+        printf("Measured resistance is %f \n", R_c);
+    }
+    WGFMU_initialize();
+    WGFMU_closeSession();
 }
 
 void simple_triangle_convergence(double LRS, double HRS, double V_LTD, double V_LTP, double step_size, const char* file_name)//Uses triangular writing pulse
@@ -610,6 +745,37 @@ void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int 
     }
 }
 
+void write_variability_pulse_number(double resistance_up, double resistance_down, double V_write_neg, double V_write_pos, const char* file_name, int nb_meas) {
+    //ADD INITIAL CONVERGENCE TO BOTTOM STATE
+    converge_to_target(resistance_down, tolerance_write, V_write_neg, V_write_pos, step_varia, file_name, 20, 1);
+    FILE* fp = fopen(file_name, "a");
+    if (fp == NULL) {
+        printf("Error opening file\n");
+        exit(1);
+    }
+    if (fp != 0) {
+        fprintf(fp, "bottom resistance;top resistance;V_p;V_n, pulse_number \n");
+        fprintf(fp, "%f;%f;%f;%f;%d \n", resistance_down, resistance_up, V_write_neg, V_write_pos, pulse_number_loop);
+        fclose(fp);
+    }
+    for (int i = 0; i < nb_meas; i++) {
+        fp = fopen(file_name, "a");
+        if (fp != 0) {
+            fprintf(fp, "s%dn \n", i+1);
+            printf("Now starting %d/%d loop (Increase) \n", i+1, nb_meas);
+            fclose(fp);
+        }
+        converge_to_target(resistance_up, tolerance_write, V_write_neg, V_write_pos, step_varia, file_name, 1, 0);
+        fp = fopen(file_name, "a");
+        if (fp != 0) {
+            fprintf(fp, "s%dp \n", i + 1);
+            printf("Now starting %d/%d loop (Decrease) \n", i + 1, nb_meas);
+            fclose(fp);
+        }
+        converge_to_target(resistance_down, tolerance_write, V_write_neg, V_write_pos, step_varia, file_name, 1, 0);
+    }
+}
+
 void WGFMU_DC_sweep(int topChannel, int bottomChannel, double V_min, double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
     //If single=1 doing a single if single=3 doing a double (from V_min to V_max back to V_min)
     double step_length = meas_time / nb_points;
@@ -774,7 +940,9 @@ const char* get_timestamp(int choice) {
         strcat(file_name, "_triangle_convergence.txt");
     }
     else {
-        strcat(file_name, "measurement.txt");
+        static char name[100];
+        sprintf(name, "_write_variability_%dOhm.txt", choice);
+        strcat(file_name, name);
     }
     printf("The measurement will be saved as: ");
     puts(file_name);

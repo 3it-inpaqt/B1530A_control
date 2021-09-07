@@ -8,13 +8,15 @@
 double read_resistance(double, double, int, int, double, double, const char*);
 void write_resistance(double, double, int, int);
 void write_resistance_triangle(double, double, int, int);
+double apply_pulse_new(double, double, int, int, double, double, const char*, int, int);
 double extract_results(int, int, int, double, double, const char*);
 void simple_convergence(double, double, double, double, double, const char*);
+void converge_to_target(double, double, double, double, double, const char*, int, int);
 void simple_triangle_convergence(double, double, double, double, double, const char*);
 void log_convergence(double, double, double, double, const char*);
 void log_convergence_2(double, double, double, double, const char*);
 void Gvt(double[], double[], const char*);
-void write_variability(double, double, const char*);
+void write_variability_pulse_number(double, double, double, double, const char*, int);
 void DC_sweep(int, int, double, double, int, double, double);
 void data_driven_fitting(double, double, double, int, const char*);
 const char* get_timestamp(int);
@@ -47,6 +49,7 @@ static const double tolerance = 0.025;
 static const int write_varia_loop = 100000;
 static const int pulse_number_loop = 1;
 static const double tolerance_write = 0.01;
+static const double step_varia = 0.02;
 
 //G(V,t) parameters
 static const int nb_points = 250; //Should be an even number
