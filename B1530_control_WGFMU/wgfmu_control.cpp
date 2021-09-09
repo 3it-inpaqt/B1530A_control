@@ -295,7 +295,7 @@ double apply_pulse_new(double Vpulse, double tpulse, int topChannel, int bottomC
         int measuredSize, totalSize;
         WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
         double time, value, voltage;
-        WGFMU_getMeasureValue(bottomChannel, measuredSize -1, &time, &value);
+        WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &value); //MAYBE MEASURED_SIZE - 1
         WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
         double res;
         if (value < 0) {
@@ -765,14 +765,14 @@ void write_variability_pulse_number(double resistance_up, double resistance_down
             printf("Now starting %d/%d loop (Increase) \n", i+1, nb_meas);
             fclose(fp);
         }
-        converge_to_target(resistance_up, tolerance_write, V_write_neg, V_write_pos, step_varia, file_name, 1, 0);
+        converge_to_target(resistance_up, tolerance_write, V_write_neg, V_write_pos, 0, file_name, 1, 0);
         fp = fopen(file_name, "a");
         if (fp != 0) {
             fprintf(fp, "s%dp \n", i + 1);
             printf("Now starting %d/%d loop (Decrease) \n", i + 1, nb_meas);
             fclose(fp);
         }
-        converge_to_target(resistance_down, tolerance_write, V_write_neg, V_write_pos, step_varia, file_name, 1, 0);
+        converge_to_target(resistance_down, tolerance_write, V_write_neg, V_write_pos, 0, file_name, 1, 0);
     }
 }
 
