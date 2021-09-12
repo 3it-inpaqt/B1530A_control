@@ -154,6 +154,23 @@ int main() {
         write_variability_pulse_number(R_max, R_min, V_write_neg, V_write_pos, timestamp, nb_meas);
     }
     }
+    else if (choice == 9) {
+    printf("Now executing variability measurements based on fixed pulse number \n", nb_state);
+    const char* timestamp = get_timestamp(choice);
+    double V_pulse;
+    printf("Enter V_pulse: ");
+    scanf("%lf", &V_pulse);
+    double step_size;
+    printf("Enter step for pulse amplitude: ");
+    scanf("%lf", &step_size);
+    double width_pulse;
+    printf("Enter pulse width (scientific notation): ");
+    scanf("%lf", &width_pulse);
+    int pulse_train;
+    printf("Enter desired number of pulse: ");
+    scanf("%d", &pulse_train);
+    variability_programming_fixed_number_pulse(V_pulse, HRS, step_size, t_pulse, pulse_train, timestamp);
+    }
 
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
@@ -776,6 +793,89 @@ void write_variability_pulse_number(double resistance_up, double resistance_down
     }
 }
 
+/**
+ * Repeats a cycle of reset/set to a specified value and then set/reset with a specific number of pulses (e.g: 50) and measures the
+ * resulting achieved resistance for variability studies. 
+ *
+ * @param Vpulse: voltage of the pulses
+ * @param LRS: Value of resistance we went to be stable in between each measurement
+ * @param step_size: size of the steps to increase the voltage when trying to reach a specific R value if it does not work
+ * @param t_pulse: time of every pulse. 
+ * @param pulse_train: number of pulses for every train.
+ * @param file_name: name of the file (timestamp)
+ * @return nothing. Writes the results to a .txt file
+ */
+void variability_programming_fixed_number_pulse(double Vpulse, double LRS, double step_size, double t_pulse, int pulse_train, const char* file_name) {
+    FILE* fp = fopen(file_name, "a");
+    if (fp != 0) {
+        fprintf(fp, "V_min; V_max; number of amplitudes; number of pulses; pulse width\n");
+        fprintf(fp, "%.9lf; %.9lf; %d; %d; %.9lf\n", -Vpulse, Vpulse, pulse_number, pulse_train, t_pulse);
+        fprintf(fp, "time; voltage; current; resistance\n");
+        fclose(fp);
+    }
+
+    WGFMU_clear();
+    converge_to_target(LRS, tolerance_write, -Vpulse, Vpulse, step_size, file_name, 20, 1);
+    for (int i = 0; i < number_iterations; i++) {
+        char top_name[100];
+        char bottom_name[100];
+        char meas_event[100];
+        sprintf(top_name, "pulse_%d", i);
+        sprintf(bottom_name, "ground_%d", i);
+        sprintf(meas_event, "Imeas_%d", i);
+        WGFMU_createPattern(top_name, 0);
+        WGFMU_createPattern(bottom_name, 0);
+        printf("%lf \n", Vpulse);
+        //Apply writing pulse
+        WGFMU_addVector(top_name, 0.00000001, Vpulse); //10 ns rise time
+        WGFMU_addVector(top_name, t_pulse - 0.00000002, Vpulse);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_addVector(bottom_name, t_pulse - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+
+        //Apply reading pulse
+        WGFMU_addVector(top_name, 0.00000001, Vr);
+        WGFMU_addVector(top_name, t_read - 0.00000002, Vr);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+
+        WGFMU_addVector(bottom_name, 0.00000001, 0); //10 ns rise time, 1 V
+        WGFMU_addVector(bottom_name, t_read - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_setMeasureEvent(bottom_name, meas_event, t_pulse + 0.00000001, 1, t_read - 0.00000004, t_read - 0.00000004, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+
+        //Check if measureEvent good
+        WGFMU_addSequence(topChannel, top_name, pulse_train);
+        WGFMU_addSequence(bottomChannel, bottom_name, pulse_train);
+        WGFMU_openSession("GPIB0::17::INSTR");
+        WGFMU_initialize();
+        WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+        WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+        WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+        WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+        WGFMU_connect(topChannel);
+        WGFMU_connect(bottomChannel);
+        WGFMU_execute();
+        WGFMU_waitUntilCompleted();
+        fp = fopen(file_name, "a");
+        if (fp != 0) {
+            fprintf(fp, "s%d\n", i + 1);
+            int measuredSize, totalSize;
+            WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+            double time, value, voltage;
+            WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &value);
+            WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
+            fprintf(fp, "%.9lf; %.9lf; %.9lf; %.9lf\n", time, -voltage, value, -voltage / value);
+            fprintf(fp, "e%d\n", i + 1);
+            fclose(fp);
+        }
+        WGFMU_initialize();
+        WGFMU_closeSession();
+        converge_to_target(LRS, tolerance_write, -Vpulse, Vpulse, step_size, file_name, 20, 1);
+
+    }
+}
 void WGFMU_DC_sweep(int topChannel, int bottomChannel, double V_min, double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
     //If single=1 doing a single if single=3 doing a double (from V_min to V_max back to V_min)
     double step_length = meas_time / nb_points;

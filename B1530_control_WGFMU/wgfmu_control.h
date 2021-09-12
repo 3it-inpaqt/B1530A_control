@@ -19,6 +19,7 @@ void Gvt(double[], double[], const char*);
 void write_variability_pulse_number(double, double, double, double, const char*, int);
 void DC_sweep(int, int, double, double, int, double, double);
 void data_driven_fitting(double, double, double, int, const char*);
+void variability_programming_fixed_number_pulse(double, double, double, double, int, const char*);
 const char* get_timestamp(int);
 
 //Global parameters
@@ -50,6 +51,7 @@ static const int write_varia_loop = 100000;
 static const int pulse_number_loop = 1;
 static const double tolerance_write = 0.01;
 static const double step_varia = 0.02;
+static const int number_iterations = 100;
 
 //G(V,t) parameters
 static const int nb_points = 250; //Should be an even number
