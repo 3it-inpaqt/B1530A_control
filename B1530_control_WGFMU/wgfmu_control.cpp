@@ -872,6 +872,7 @@ void variability_programming_fixed_number_pulse(double Vpulse, double LRS, doubl
         }
         WGFMU_initialize();
         WGFMU_closeSession();
+        Sleep(1); //Sleep for 1ms
         converge_to_target(LRS, tolerance_write, -Vpulse, Vpulse, step_size, file_name, 20, 1);
 
     }
