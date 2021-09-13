@@ -864,7 +864,7 @@ void variability_programming_fixed_number_pulse(double Vpulse, double LRS, doubl
             int measuredSize, totalSize;
             WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
             double time, value, voltage;
-            WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &value);
+            WGFMU_getMeasureValue(bottomChannel, measuredSize-1 , &time, &value);
             WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
             fprintf(fp, "%.9lf; %.9lf; %.9lf; %.9lf\n", time, -voltage, value, -voltage / value);
             fprintf(fp, "e%d\n", i + 1);
@@ -1038,6 +1038,9 @@ const char* get_timestamp(int choice) {
     }
     else if (choice == 7) {
         strcat(file_name, "_triangle_convergence.txt");
+    }
+    else if (choice == 9) {
+        strcat(file_name, "_write_variability_fixedNpulse.txt");
     }
     else {
         static char name[100];
