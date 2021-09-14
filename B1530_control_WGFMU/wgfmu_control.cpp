@@ -155,6 +155,27 @@ int main() {
     }
     }
 
+    else if (choice == 9) {
+    printf("Now executing LTD LTP measurement ferro mem\n");
+    double V_min;
+    printf("Enter V_min: ");
+    scanf("%lf", &V_min);
+    double V_max;
+    printf("Enter V_max: ");
+    scanf("%lf", &V_max);
+    double t_min;
+    printf("Enter t_pulse_min: ");
+    scanf("%lf", &t_min);
+    double t_max;
+    printf("Enter t_pulse_max: ");
+    scanf("%lf", &t_max);
+    int nb_pulses;
+    printf("Enter number of pulses: ");
+    scanf("%d", &nb_pulses);
+    const char* timestamp = get_timestamp(choice);
+    LTD_LTP_measurement(V_min, V_max, t_min, t_max, nb_pulses, timestamp);
+    }
+
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
     }
@@ -911,6 +932,81 @@ void data_driven_fitting(double V_pulse_min, double V_pulse_max, double t_pulse,
     WGFMU_closeSession();
 }
 
+void LTD_LTP_measurement(double V_pulse_min, double V_pulse_max, double t_pulse_min, double t_pulse_max, int pulse_train, const char* file_name) {
+    //create pattern
+    WGFMU_clear();
+    double polarity = 1;
+    for (int i = 0; i < 2 * pulse_number_LTD_LTP; i++) {
+        char top_name[100];
+        char bottom_name[100];
+        char meas_event[100];
+        sprintf(top_name, "pulse_%d", i);
+        sprintf(bottom_name, "ground_%d", i);
+        sprintf(meas_event, "Imeas_%d", i);
+        WGFMU_createPattern(top_name, 0);
+        WGFMU_createPattern(bottom_name, 0);
+        if (i % 2 == 0) {
+            polarity = 1;
+        }
+        else {
+            polarity = -1;
+        }
+        int coeff = i / 2;
+        double Vpulse = polarity * (V_pulse_min + coeff * ((V_pulse_max - V_pulse_min) / (pulse_number_LTD_LTP - 1)));
+        printf("%lf \n", Vpulse);
+        //Apply writing pulse
+        WGFMU_addVector(top_name, 0.00000001, Vpulse); //10 ns rise time
+        WGFMU_addVector(top_name, t_pulse - 0.00000002, Vpulse);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_addVector(bottom_name, t_pulse - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+
+        //Apply reading pulse
+        WGFMU_addVector(top_name, 0.00000001, Vr);
+        WGFMU_addVector(top_name, t_read - 0.00000002, Vr);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+
+        WGFMU_addVector(bottom_name, 0.00000001, 0); //10 ns rise time, 1 V
+        WGFMU_addVector(bottom_name, t_read - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_setMeasureEvent(bottom_name, meas_event, t_pulse + 0.00000001, 1, t_read - 0.00000004, t_read - 0.00000004, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+
+        //Check if measureEvent good
+        WGFMU_addSequence(topChannel, top_name, pulse_train);
+        WGFMU_addSequence(bottomChannel, bottom_name, pulse_train);
+    }
+
+    WGFMU_openSession("GPIB0::17::INSTR");
+    WGFMU_initialize();
+    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+    WGFMU_connect(topChannel);
+    WGFMU_connect(bottomChannel);
+    WGFMU_execute();
+    WGFMU_waitUntilCompleted();
+    FILE* fp = fopen(file_name, "w");
+    if (fp != 0) {
+        fprintf(fp, "V_min; V_max; number of amplitudes; number of pulses; pulse width min, pulse width max, number of pulse width\n");
+        fprintf(fp, "%.9lf; %.9lf; %d; %d; %.9lf; %.9lf; %d\n", V_pulse_min, V_pulse_max, pulse_number_LTD_LTP, pulse_train, t_pulse_min, t_pulse_max, t_pulse_number_LTD_LTP);
+        fprintf(fp, "time; voltage; current; resistance\n");
+        int measuredSize, totalSize;
+        WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+        for (int i = 0; i < measuredSize; i++) {
+            double time, value, voltage;
+            WGFMU_getMeasureValue(bottomChannel, i, &time, &value);
+            WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
+            fprintf(fp, "%.9lf; %.9lf; %.9lf; %.9lf\n", time, -voltage, value, -voltage / value);
+        }
+        fclose(fp);
+    }
+    WGFMU_initialize();
+    WGFMU_closeSession();
+}
+
 const char* get_timestamp(int choice) {
     time_t rawtime;
     struct tm* timeinfo;
@@ -938,6 +1034,9 @@ const char* get_timestamp(int choice) {
     }
     else if (choice == 7) {
         strcat(file_name, "_triangle_convergence.txt");
+    }
+    else if (choice == 9) {
+        strcat(file_name, "_LTD_LTP_ferro.txt");
     }
     else {
         static char name[100];

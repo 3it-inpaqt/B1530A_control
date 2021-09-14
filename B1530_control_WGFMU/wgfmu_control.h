@@ -19,6 +19,7 @@ void Gvt(double[], double[], const char*);
 void write_variability_pulse_number(double, double, double, double, const char*, int);
 void DC_sweep(int, int, double, double, int, double, double);
 void data_driven_fitting(double, double, double, int, const char*);
+void LTD_LTP_measurement(double, double, double, double, int, const char*);
 const char* get_timestamp(int);
 
 //Global parameters
@@ -56,3 +57,7 @@ static const int nb_points = 250; //Should be an even number
 static const int sleep_time = 20000; //Time between two DC sweep (waiting for the measurement to end) in ms
 static const int pulse_number = 6; //Number of pulse amplitudes to test for G(V,t) measurements or data driven model
 static double list_time[21] = {3E-8, 5E-8, 7E-8, 3E-7, 5E-7, 7E-7, 3E-6, 5E-6, 7E-6, 3E-5, 5E-5, 7E-5, 3E-4, 5E-4, 7E-4, 3E-3, 5E-3, 7E-3, 3E-2, 5E-2, 7E-2 }; // list pulse width for G(V,t) measurements
+
+//LTD LTP measurements for ferro team
+static const int pulse_number_LTD_LTP = 6; //Number of different (absolute) pulse amplitude to be used in LTD LTP measurements
+static const int t_pulse_number_LTD_LTP = 6; //Number of different pulse width to be used in LTD LTP measurements
