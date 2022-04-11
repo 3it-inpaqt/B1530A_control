@@ -1,1 +1,17 @@
-﻿  WGFMU.vcxproj -> C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\Debug\WGFMU.exe
+﻿  wgfmu_control.cpp
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(116,78): warning C4474: 'printf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(116,78): message : placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(241,92): warning C4244: 'argument': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(845,103): warning C4474: 'fprintf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(845,103): message : placeholders and their parameters expect 3 variadic arguments, but 4 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(928,103): warning C4474: 'fprintf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(928,103): message : placeholders and their parameters expect 3 variadic arguments, but 4 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(966,19): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(987,25): warning C4477: 'fprintf' : format string '%f' requires an argument of type 'double', but variadic argument 2 has type 'int'
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(991,28): warning C4244: 'argument': conversion from 'double' to 'DWORD', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1339,130): warning C4474: 'fprintf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1339,130): message : placeholders and their parameters expect 6 variadic arguments, but 7 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1343,20): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(474): warning C4715: 'extract_results': not all control paths return a value
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(441): warning C4715: 'apply_pulse_new': not all control paths return a value
+  WGFMU.vcxproj -> C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\Debug\WGFMU.exe

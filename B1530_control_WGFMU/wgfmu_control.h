@@ -18,6 +18,7 @@ void log_convergence_2(double, double, double, double, const char*);
 void Gvt(double[], double[], double, double, const char*);
 void Gvt_pulse(int, double[], double, double, const char*);
 void Gvt_pulse_2(int, double[], double, double, const char*);
+void retention(double, double, double, double, double, const char*);
 void write_variability_pulse_number(double, double, double, double, const char*, int);
 void DC_sweep(int, int, double, double, int, double, double);
 void data_driven_fitting(double, double, double, int, const char*);

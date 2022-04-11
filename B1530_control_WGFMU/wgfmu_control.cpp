@@ -246,7 +246,29 @@ int main() {
             V_pulse_pos = voltages[i];
         }
 }
-
+    else if (choice == 12) {
+        printf("Now executing retention tests \n");
+        const char* timestamp = get_timestamp(choice, folder_path);
+        double V_LTP;
+        printf("Enter V_LTP: ");
+        scanf("%lf", &V_LTP);
+        double V_LTD;
+        printf("Enter V_LTD: ");
+        scanf("%lf", &V_LTD);
+        double R_target;
+        printf("Enter Target resistance: ");
+        scanf("%lf", &R_target);
+        double total_time;
+        printf("Enter Total time(h): ");
+        scanf("%lf", &total_time);
+        double sampling_time;
+        printf("Enter sampling time(s): ");
+        scanf("%lf", &sampling_time);
+        if (sampling_time > total_time*3600) {
+            sampling_time = 10;
+        }
+        retention(total_time*3600, sampling_time, R_target, V_LTD, V_LTP, timestamp);
+    }
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
     }
@@ -940,6 +962,27 @@ void Gvt_pulse(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double V
     }
 }
 
+void retention(double total_time, double sampling_time, double R_target, double V_LTD, double V_LTP, const char* file_name) {
+    int nb_pulses = total_time/sampling_time;
+    converge_to_target(R_target, tolerance, V_LTD, V_LTD, 0.05, file_name, 20, 1);
+    FILE* fp = fopen(file_name, "a");
+    if (fp == NULL) {
+        printf("Error opening file\n");
+        exit(1);
+    }
+    if (fp != 0) {
+        fprintf(fp, "R_target;total time(s); sampling time(s); total pulses\n");
+        fprintf(fp, "%f;%f;%f;%d \n", R_target, total_time, sampling_time, nb_pulses);
+        fprintf(fp, "time(s); resistance\n");
+        fclose(fp);
+    }
+    for (int i = 0; i < nb_pulses+1; i++) {
+        apply_pulse_new(Vr, t_read, topChannel, bottomChannel, sampling_time*i,0, file_name, 0, 0);
+        printf("Time remaining: %lfs\nApplied: %d pulses\n", (total_time - sampling_time * (i + 1)), i+1);
+        Sleep(sampling_time*1000);
+    }
+}
+
 void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
     //If single=1 doing a single if single=3 doing a double (from V_min to V_max back to V_min)
     if (single == 1 || single == 3) {
@@ -1435,6 +1478,9 @@ const char* get_timestamp(int choice, const char* folder) {
     }
     else if (choice == 11) {
         strcat(file_name, "_write_variability_ddvariant.txt");
+    }
+    else if (choice == 12) {
+        strcat(file_name, "_retention.txt");
     }
     else if (choice == 97) {
         strcat(file_name, "_Gvt_pulse_folder\\");
