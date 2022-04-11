@@ -23,6 +23,7 @@ void data_driven_fitting(double, double, double, int, const char*);
 void LTD_LTP_measurement(double, double, double, double, int, const char*);
 void DC_source_sweep(double, double, double, const char*);
 void DC_voltage_prog(double, const char*);
+void pulse_var_studies(double, double, double, double, int, int, int, const char*);
 const char* get_timestamp(int);
 
 //Global parameters
