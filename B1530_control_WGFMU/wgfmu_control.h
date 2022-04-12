@@ -19,6 +19,7 @@ void Gvt(double[], double[], double, double, const char*);
 void Gvt_pulse(int, double[], double, double, const char*);
 void Gvt_pulse_2(int, double[], double, double, const char*);
 void retention(double, double, double, double, double, const char*);
+void PRT(double, double, double, const char*);
 void write_variability_pulse_number(double, double, double, double, const char*, int);
 void DC_sweep(int, int, double, double, int, double, double);
 void data_driven_fitting(double, double, double, int, const char*);
@@ -30,6 +31,7 @@ const char* get_timestamp(int, const char*);
 
 //Global parameters
 static const char* folder_path = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\";
+static const char* folder_path_Gvt = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\5\\";
 static const char* path_csv = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\multilevel_prog.txt";//The path to your CSV
 static const int topChannel = 101;//physical channel of WGFMU used by the probe tip placed on the top electrode
 static const int bottomChannel = 102;//physical channel of WGFMU used by the probe tip placed on the bottom electrode
@@ -62,11 +64,11 @@ static const double step_varia = 0.02;
 static const int nb_points = 250; //Should be an even number
 static const int sleep_time = 20000; //Time between two DC sweep (waiting for the measurement to end) in ms
 static const int repeat_data_driven = 10;
-static const int repeat_Gvt = 5;
+static const int repeat_Gvt = 10;
 static const int pulse_number = 8; //Number of pulse amplitudes to test for G(V,t) measurements or data driven model
 static double list_time[21] = {3E-8, 5E-8, 7E-8, 3E-7, 5E-7, 7E-7, 3E-6, 5E-6, 7E-6, 3E-5, 5E-5, 7E-5, 3E-4, 5E-4, 7E-4, 3E-3, 5E-3, 7E-3, 3E-2, 5E-2, 7E-2 }; // list pulse width for G(V,t) measurements
-static const double HRS_Gvt = 20000;
-static const double LRS_Gvt = 2500;
+static const double HRS_Gvt = 35000;
+static const double LRS_Gvt = 5000;
 
 
 //LTD LTP measurements for ferro team

@@ -28,7 +28,7 @@ int main() {
     scanf("%lf", &HRS);
     printf("Selected LRS is %f \n", HRS);
     int choice;
-    printf("Which measurement? (simple = 1, adapt log = 3, data driven = 5, DC sweep = 9, To DC voltage = 10) \n");
+    printf("Which measurement? (simple = 1, Gvt = 4, data driven = 5, retention = 12, PRT = 13) \n");
     scanf("%d", &choice);
     if (choice == 1) {
         printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
@@ -96,14 +96,18 @@ int main() {
             int nb_pulse_max;
             printf("Enter max pulse:");
             scanf("%d", &nb_pulse_max);
-            const char* folder = folder_path;
-            if (repeat_Gvt != 1) {
-                 folder = get_timestamp(97, folder_path);
-                
-            }
+            const char* folder = get_timestamp(97, folder_path);
+            const char* timestamp = get_timestamp(96, folder);
             for (int k = 0; k < repeat_Gvt; k++) {
-                const char* timestamp = get_timestamp(choice, folder);
-                Gvt_pulse_2(nb_pulse_max, list_pulse_amp, V_LTD, V_LTP, timestamp);
+                char ID[18]="";
+                sprintf(ID, "_%d.txt", k);
+                char file_name[200] = "";
+                strcat(file_name, timestamp);
+                strcat(file_name, ID);
+                puts(file_name);
+                printf("\nFOLDER NAME\n");
+                puts(timestamp);
+                Gvt_pulse_2(nb_pulse_max, list_pulse_amp, V_LTD, V_LTP, file_name);
             }
         }
         else if (pulse == 1) {
@@ -268,6 +272,25 @@ int main() {
             sampling_time = 10;
         }
         retention(total_time*3600, sampling_time, R_target, V_LTD, V_LTP, timestamp);
+    }
+
+    else if (choice == 13) {
+        printf("Now executing Pulsed Transient Response (PRT)\n");
+        const char* timestamp = get_timestamp(choice, folder_path);
+        double R_target;
+        printf("Enter starting resistance: ");
+        scanf("%lf", &R_target);
+        double Vp;
+        printf("Enter Vp: ");
+        scanf("%lf", &Vp);
+        double Vn;
+        printf("Enter Vn: ");
+        scanf("%lf", &Vn);
+        double nb_pulse;
+        printf("Enter nb_pulse: ");
+        scanf("%lf", &nb_pulse);
+        converge_to_target(R_target, tolerance, -1.0, 1.0, 0.05, timestamp, 20, 1);
+        PRT(Vp, Vn, nb_pulse, timestamp);
     }
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
@@ -849,7 +872,7 @@ void Gvt_pulse_2(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double
     for (int i = 0; i < pulse_number; i++) {
         printf("%lf\n", list_pulse_amp[i]);
     }
-    if (list_pulse_amp[0] < 0) {
+    /*if (list_pulse_amp[0] < 0) {
         converge_to_target(LRS_Gvt, tolerance, V_LTD, V_LTP, 0.05, file_name, 1, 1);
     }
     if (list_pulse_amp[0] > 0) {
@@ -914,7 +937,7 @@ void Gvt_pulse_2(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double
         if (list_pulse_amp[i] > 0) {
             converge_to_target(HRS_Gvt, tolerance, V_LTD, V_LTP, 0.05, file_name, 1, 1);
         }
-    }
+    }*/
 }
 
 void Gvt_pulse(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double V_LTP, const char* file_name) {
@@ -964,7 +987,7 @@ void Gvt_pulse(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double V
 
 void retention(double total_time, double sampling_time, double R_target, double V_LTD, double V_LTP, const char* file_name) {
     int nb_pulses = total_time/sampling_time;
-    converge_to_target(R_target, tolerance, V_LTD, V_LTD, 0.05, file_name, 20, 1);
+    converge_to_target(R_target, tolerance, V_LTD, V_LTP, 0.05, file_name, 20, 1);
     FILE* fp = fopen(file_name, "a");
     if (fp == NULL) {
         printf("Error opening file\n");
@@ -977,7 +1000,7 @@ void retention(double total_time, double sampling_time, double R_target, double 
         fclose(fp);
     }
     for (int i = 0; i < nb_pulses+1; i++) {
-        apply_pulse_new(Vr, t_read, topChannel, bottomChannel, sampling_time*i,0, file_name, 0, 0);
+        read_resistance(Vr, t_read, topChannel, bottomChannel, sampling_time*i,0, file_name);
         printf("Time remaining: %lfs\nApplied: %d pulses\n", (total_time - sampling_time * (i + 1)), i+1);
         Sleep(sampling_time*1000);
     }
@@ -1181,17 +1204,79 @@ void data_driven_fitting(double V_pulse_min, double V_pulse_max, double t_pulse,
     WGFMU_closeSession();
 }
 
-void DC_source_proto(double min_voltage, double max_voltage, double v_in, double R_min, double R_max, double step_size) {
-    while (1) {
+void PRT(double Vp, double Vn, double nb_pulse, const char* file_name) {
+    //create pattern
+    double Vpulse;
+    WGFMU_clear();
+    for (int i = 0; i < 2 * repeat_data_driven; i++) {
+        char top_name[100];
+        char bottom_name[100];
+        char meas_event[100];
+        sprintf(top_name, "pulse_%d", i);
+        sprintf(bottom_name, "ground_%d", i);
+        sprintf(meas_event, "Imeas_%d", i);
+        WGFMU_createPattern(top_name, 0);
+        WGFMU_createPattern(bottom_name, 0);
+        int coeff = i % 2;
+        if (coeff == 0) {
+            Vpulse = Vp;
+        }
+        else {
+            Vpulse = Vn;
+        }
+        printf("%lf \n", Vpulse);
+        WGFMU_addVector(top_name, 0.00000001, Vpulse); //10 ns rise time
+        WGFMU_addVector(top_name, t_pulse - 0.00000002, Vpulse);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
 
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_addVector(bottom_name, t_pulse - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+
+        //Apply reading pulse
+        WGFMU_addVector(top_name, 0.00000001, Vr);
+        WGFMU_addVector(top_name, t_read - 0.00000002, Vr);
+        WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+
+        WGFMU_addVector(bottom_name, 0.00000001, 0); //10 ns rise time, 1 V
+        WGFMU_addVector(bottom_name, t_read - 0.00000002, 0);
+        WGFMU_addVector(bottom_name, 0.00000001, 0);
+        WGFMU_setMeasureEvent(bottom_name, meas_event, t_pulse + 0.00000001, 1, t_read - 0.00000002, t_read - 0.00000002, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+
+        //Check if measureEvent good
+        WGFMU_addSequence(topChannel, top_name, nb_pulse);
+        WGFMU_addSequence(bottomChannel, bottom_name, nb_pulse);
     }
+
+    WGFMU_openSession("GPIB0::17::INSTR");
+    WGFMU_initialize();
+    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+    WGFMU_connect(topChannel);
+    WGFMU_connect(bottomChannel);
+    WGFMU_execute();
+    WGFMU_waitUntilCompleted();
+    FILE* fp = fopen(file_name, "w");
+    if (fp != 0) {
+        fprintf(fp, "Vp; Vn; number of pulses; repeat; pulse width\n");
+        fprintf(fp, "%.9lf; %.9lf; %d; %d; %.9lf\n", Vp, Vn, repeat_data_driven, nb_pulse, t_pulse);
+        fprintf(fp, "time; voltage; current; resistance\n");
+        int measuredSize, totalSize;
+        WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+        for (int i = 0; i < measuredSize; i++) {
+            double time, value, voltage;
+            WGFMU_getMeasureValue(bottomChannel, i, &time, &value);
+            WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
+            fprintf(fp, "%.9lf; %.9lf; %.9lf; %.9lf\n", time, -voltage, value, -voltage / value);
+        }
+        fclose(fp);
+    }
+    WGFMU_initialize();
+    WGFMU_closeSession();
 }
 
-
-void varia_write() {
-
-
-}
 
 void LTD_LTP_measurement(double V_pulse_min, double V_pulse_max, double t_pulse_min, double t_pulse_max, int pulse_train, const char* file_name) {
     //create pattern
@@ -1446,10 +1531,11 @@ const char* get_timestamp(int choice, const char* folder) {
     time_t rawtime;
     struct tm* timeinfo;
     static char buffer[18];
-    static char file_name[100];
+    static char file_name[200];
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     strcpy(file_name, folder);
+    puts(folder);
     strftime(buffer, 16, "%G%m%d%H%M%S", timeinfo);
     strcat(file_name, buffer);
     if (choice == 1) {
@@ -1481,6 +1567,12 @@ const char* get_timestamp(int choice, const char* folder) {
     }
     else if (choice == 12) {
         strcat(file_name, "_retention.txt");
+    }
+    else if (choice == 13) {
+        strcat(file_name, "_PRT.txt");
+    }
+    else if (choice == 96) {
+        strcat(file_name, "_Gvt_pulse");
     }
     else if (choice == 97) {
         strcat(file_name, "_Gvt_pulse_folder\\");
