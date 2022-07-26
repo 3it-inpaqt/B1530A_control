@@ -11,7 +11,7 @@
 #include <Windows.h>
 #include "wgfmu.h"
 #include "wgfmu_control.h"
-#include <visa.h>
+#include "visa.h"
 #include <math.h>
 #include <time.h>
 #include <direct.h>
@@ -48,15 +48,18 @@ int main() {
         simple_convergence_fast(LRS, HRS, V_LTD, V_LTP, step_size, advanced, timestamp);
     }
     else if (choice == 2) {
-        printf("Now executing logarithmic multilevel programming of %d resistance states \n", nb_state);
+        printf("Now executing convergence to target \n", nb_state);
         const char* timestamp = get_timestamp(choice, folder_path);
+        double R_target;
+        printf("Enter R_target: ");
+        scanf("%lf", &R_target);
         double V_LTP;
         printf("Enter V_LTP: ");
         scanf("%lf", &V_LTP);
         double V_LTD;
         printf("Enter V_LTD: ");
         scanf("%lf", &V_LTD);
-        log_convergence(LRS, HRS, V_LTD, V_LTP, timestamp);
+        converge_to_target(R_target, tolerance, V_LTD, V_LTP, 0.03, timestamp, 20, 1);
     }
     else if (choice == 3) {
         printf("Now executing adaptative logarithmic multilevel programming of %d resistance states \n", nb_state);
@@ -140,18 +143,8 @@ int main() {
         }
     }
     else if (choice == 6) {
-        printf("Now executing measurement for set/reset\n");
-        double V;
-        printf("Enter V: ");
-        scanf("%lf", &V);
-        double compliance;
-        if (V > 0) {
-            compliance = compliance_set;
-        }
-        else {
-            compliance = compliance_reset;
-        }
-        DC_sweep(topChannel, bottomChannel, 0, V, 3, meas_time, compliance);
+        printf("Read variability with SMUs\n");
+        DC_sweep(topChannelSMU, bottomChannelSMU);
     }
     else if (choice == 7) {
         printf("Now executing triangle multilevel programming of %d resistance states \n", nb_state);
@@ -217,40 +210,22 @@ int main() {
     }
     
     else if (choice == 11) {
-        if (HRS > 10000) {
-            current_measure_range = WGFMU_MEASURE_CURRENT_RANGE_100UA;
-
-        }
-        else {
-            current_measure_range = WGFMU_MEASURE_CURRENT_RANGE_1MA;
-           }
+        double V_pulse_pos;
+        printf("Enter Vp: ");
+        scanf("%lf", &V_pulse_pos);
         double V_pulse_neg;
-        double pulse_train_neg = 1;
-        double width_pulse = 0.0;
+        printf("Enter Vn: ");
+        scanf("%lf", &V_pulse_neg);
+        double width_pulse = 2e-7;
         int pulse_train = 1;
         int nit;
-        double V_pulse_pos = 0.3;
-        V_pulse_neg = 0.2;
-        // Modify the parameters below depending on the measurements to do. 
-        double widths[2] = { 2e-7, 6e-7 }; // { 2e-7, 4e-7, 6e-7, 8e-7 };
-        double voltages[11] = { 0.4,0.5,0.6,0.7,0.8,0.9,1.1,1.2,2.2,2.3,2.4 };
         double pulse_trains[1] = { 1 }; //Keep to one depending 
         printf("Enter number of iteration: ");
         scanf("%d", &nit);
-        for (int i = 0; i < 11; i++) {
-            //for(int j = 0; j < 1; j++){
-            for (int k = 0; k < 1; k++) {
-                width_pulse = widths[k];
-                const char* timestamp = get_timestamp(choice, folder_path);
-                V_pulse_neg = -1 * V_pulse_pos;
-                //V_pulse_neg = pulse_matching(V_pulse_pos,width_pulse,HRS,0.01); //If you want to match the pulses so that stability stays longer
-                printf("V_pulse_neg = %f", V_pulse_neg);
-                pulse_var_studies(V_pulse_pos, V_pulse_neg, HRS, width_pulse, pulse_train, pulse_train_neg, nit, timestamp);
-                // }
-                 //pulse_train = pulse_trains[j];
-                // pulse_train_neg = pulse_trains[j];
-            }
-            V_pulse_pos = voltages[i];
+        for (int i = 0; i < 2; i++) {
+            const char* timestamp = get_timestamp(choice, folder_path);
+            //V_pulse_neg = pulse_matching(V_pulse_pos,width_pulse,HRS,0.01); //If you want to match the pulses so that stability stays longer
+            pulse_var_studies(V_pulse_pos, V_pulse_neg, HRS, width_pulse, pulse_train, pulse_train, 1e6, timestamp);
         }
 }
     else if (choice == 12) {
@@ -279,7 +254,6 @@ int main() {
 
     else if (choice == 13) {
         printf("Now executing Pulsed Transient Response (PRT)\n");
-        const char* timestamp = get_timestamp(choice, folder_path);
         double R_target;
         printf("Enter starting resistance: ");
         scanf("%lf", &R_target);
@@ -292,8 +266,20 @@ int main() {
         double nb_pulse;
         printf("Enter nb_pulse: ");
         scanf("%lf", &nb_pulse);
-        converge_to_target(R_target, tolerance, -1.0, 1.0, 0.05, timestamp, 20, 1);
-        PRT(Vp, Vn, nb_pulse, timestamp);
+        const char* folder = get_timestamp(98, folder_path);
+        const char* timestamp = get_timestamp(94, folder);
+        for (int k = 0; k < repeat_PRT; k++) {
+            char ID[18] = "";
+            sprintf(ID, "_%d.txt", k);
+            char file_name[200] = "";
+            strcat(file_name, timestamp);
+            strcat(file_name, ID);
+            puts(file_name);
+            printf("\nFOLDER NAME\n");
+            puts(timestamp);
+            converge_to_target(R_target, tolerance, -0.7, 0.5, 0.025, file_name, 5, 1);
+            PRT(Vp, Vn, nb_pulse, file_name);;
+        }
     }
     else if (choice == 14) {
         printf("Now executing read variability tests \n");
@@ -317,6 +303,50 @@ int main() {
             sampling_time = 1e-6;
         }
         read_variability(total_time, sampling_time, R_target, V_LTD, V_LTP, timestamp);
+}
+    else if (choice == 15) {
+        const char* timestamp = get_timestamp(15, folder_path);
+        double V_p;
+        printf("Enter V_p: ");
+        scanf("%lf", &V_p);
+        double V_n;
+        printf("Enter V_n: ");
+        scanf("%lf", &V_n);
+        double R_target;
+        printf("Enter Target resistance: ");
+        scanf("%lf", &R_target);
+        double wait_time;
+        printf("Enter wait time (scientific notation): ");
+        scanf("%lf", &wait_time);
+        PVS(V_p, V_n, R_target, t_pulse, wait_time, 10, timestamp);
+}
+    else if (choice == 16) {
+        const char* timestamp = get_timestamp(1, folder_path);
+        WGFMU_openSession("GPIB0::17::INSTR"); //18
+        WGFMU_initialize();
+        WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+        WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+        WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+        WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+        WGFMU_connect(topChannel);
+        WGFMU_connect(bottomChannel);
+        double pulse_amp = 0;
+        double R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, timestamp, 1, 0);
+        printf("Extracted resistance is %f \n", R_c);
+        WGFMU_initialize();
+        WGFMU_closeSession();
+}
+    else if (choice == 17) {
+    const char* timestamp = get_timestamp(17, folder_path);
+        FILE* fa;
+        char buffer[64];
+        fa = fopen(path_list_res, "r");
+        while (fgets(buffer, 64, fa)) {
+            double R_target = atof(buffer);
+            converge_to_target(R_target, 0.01, -1.0, 1.0, 0.02, timestamp, 5, 0);
+        }
+
+        fclose(fa);
 }
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
@@ -535,7 +565,7 @@ void simple_convergence_fast(double LRS, double HRS, double V_LTD, double V_LTP,
         double Rmax = R_target * (1 + tolerance);
         double Rmin = R_target * (1 - tolerance);
         converge_to_target(R_target, tolerance, V_LTD, V_LTP, step_size, file_name, stop, 0);
-        if (advanced == 0) {
+        /*if (advanced == 0) {
             char ID[50] = "";
             sprintf(ID, "_overlap_%.2lf.txt", R_target);
             char file_name_gaussian[200] = "";
@@ -599,7 +629,7 @@ void simple_convergence_fast(double LRS, double HRS, double V_LTD, double V_LTP,
             }
             WGFMU_initialize();
             WGFMU_closeSession();
-        }
+        }*/
     }
     printf("End of simple multilevel programming");
 }
@@ -664,7 +694,7 @@ void converge_to_target(double R_target, double tol, double V_LTD, double V_LTP,
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
     WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
@@ -932,7 +962,7 @@ void log_convergence_2(double LRS, double HRS, double V_LTD, double V_LTP, const
 }
 
 void Gvt(double list_time[], double list_pulse_amp[], double V_LTD, double V_LTP, const char* file_name) {//CHANGER WRITE RESISTANCE TO APPLY PULSE NEW AND ADD OPEN SESSION AND CLOSSE SESSION
-    int size_time = 21;
+    int size_time = 18;
     FILE* fp = fopen(file_name, "a");
     if (fp == NULL) {
         printf("Error opening file\n");
@@ -956,9 +986,11 @@ void Gvt(double list_time[], double list_pulse_amp[], double V_LTD, double V_LTP
             }
             else {
                 converge_to_target(HRS_Gvt, tolerance, V_LTD, V_LTP, 0.05, file_name, 1, 1);
-                apply_pulse_new(list_pulse_amp[i], list_time[i], topChannel, bottomChannel, list_pulse_amp[i], 0, file_name, 1, 1);//write
+                write_resistance(list_pulse_amp[j], list_time[i], topChannel, bottomChannel);
+                //apply_pulse_new(list_pulse_amp[j], list_time[i], topChannel, bottomChannel, list_pulse_amp[i], 0, file_name, 1, 1);//write
                 Sleep(1);
-                apply_pulse_new(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[i], list_time[i], file_name, 0, 0);//read
+                read_resistance(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i], file_name);
+                //apply_pulse_new(Vr, t_read, topChannel, bottomChannel, list_pulse_amp[j], list_time[i], file_name, 0, 0);//read
                 Sleep(1);
             }
         }
@@ -1023,7 +1055,7 @@ void Gvt_pulse_2(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double
         WGFMU_initialize();
         WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
         WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-        WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
+        WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
         WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
         WGFMU_connect(topChannel);
         WGFMU_connect(bottomChannel);
@@ -1098,7 +1130,7 @@ void Gvt_pulse(int nb_pulse_max, double list_pulse_amp[], double V_LTD, double V
 }
 
 void retention(double total_time, double sampling_time, double R_target, double V_LTD, double V_LTP, const char* file_name) {
-    int nb_pulses = total_time/sampling_time;
+    int nb_pulses = total_time/2e-3;
     converge_to_target(R_target, tolerance, V_LTD, V_LTP, 0.05, file_name, 20, 1);
     FILE* fp = fopen(file_name, "a");
     if (fp == NULL) {
@@ -1112,9 +1144,9 @@ void retention(double total_time, double sampling_time, double R_target, double 
         fclose(fp);
     }
     for (int i = 0; i < nb_pulses+1; i++) {
-        read_resistance(Vr, t_read, topChannel, bottomChannel, sampling_time*i,0, file_name);
-        printf("Time remaining: %lfs\nApplied: %d pulses\n", (total_time - sampling_time * (i + 1)), i+1);
-        Sleep(sampling_time*1000);
+        read_resistance(Vr, 1e-3, topChannel, bottomChannel, sampling_time*i,0, file_name);
+        printf("Time remaining: %lfs\nApplied: %d pulses\n", (total_time - 1e-3 * (i + 1)), i+1);
+        Sleep(1e-3);
     }
 }
 
@@ -1184,35 +1216,58 @@ void read_variability(double total_time, double sampling_time, double R_target, 
 
 }
 
-void DC_sweep(int topChannel, int bottomChannel, double V_min,double V_max, int single, double meas_time, double compliance) { //Need to implement compliance
+void DC_sweep(int topChannel, int bottomChannel) { //Need to implement compliance
     //If single=1 doing a single if single=3 doing a double (from V_min to V_max back to V_min)
-    if (single == 1 || single == 3) {
-        ViSession defaultRM;
-        ViSession vi;
-        viOpenDefaultRM(&defaultRM);
-        viOpen(defaultRM, "GPIB0::17::INSTR", VI_NULL, VI_NULL, &vi); //Connect to B1500 201 et 301 3IT 301 et 401 IQ
-        viPrintf(vi, "CN 201\n"); //Enable SMU of channel 201
-        viPrintf(vi, "CN 301\n"); //Enable SMU of channel 202
-        //viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
-        viPrintf(vi, "DV 301,0,0,0.001\n");//Force 0V with compliance 1mA
-        viPrintf(vi, "MM 2,201\n"); //Operation mode to staircase sweep measurements
-        //viPrintf(vi, "WM 2,1\n");
-        static char staircase[100];
-        sprintf(staircase, "WV 201,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
-        ViConstString Vistaircase = staircase;
-        viPrintf(vi, Vistaircase);
-        //viPrintf(vi, "WV 201,3,0,0,-1.5,400,0.01\n"); //Staircase measurement
-        viPrintf(vi, "XE\n"); //Retry should execute measurement
-        Sleep(sleep_time);
-        viPrintf(vi, "CL 201\n"); //Disable SMU of channel 201
-        viPrintf(vi, "CL 301\n"); //Disable SMU of channel 202
-        viClose(vi);
-        viClose(defaultRM);
-    }
-    else {
-        printf("out");
-        exit(0);
-    }
+    time_t rawtime;
+    struct tm* timeinfo;
+    static char buffer[18];
+    static char file_name[200];
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strcpy(file_name, folder_path);
+    strftime(buffer, 16, "%G%m%d%H%M%S", timeinfo);
+    strcat(file_name, buffer);
+    strcat(file_name, "_reaad_varia_SMU.txt");
+    char str[128];
+    ViSession defaultRM;
+    ViSession vi;
+    viOpenDefaultRM(&defaultRM);
+    viOpen(defaultRM, "GPIB0::17::INSTR", VI_NULL, VI_NULL, &vi); //Connect to B1500 201 et 301 3IT 301 et 401 IQ
+    viPrintf(vi, "CN 201\n"); //Enable SMU of channel 201
+    viPrintf(vi, "CN 301\n"); //Enable SMU of channel 202
+    //viPrintf(vi, "RI 2,-17\n");//Compliance current of 1mA
+    viPrintf(vi, "DV 301,0,0.2,0.001\n");//Force 0V with compliance 1mA
+    viPrintf(vi, "FMT 1, 1\n");
+    viPrintf(vi, "MM 1,%d\n", 201);
+    viPrintf(vi, "MM 1,%d\n", 301);
+        
+    for (int i = 0; i < 1e4; i++) {
+        viPrintf(vi, "CMM %d,1\n", 301);
+        viPrintf(vi, "XE\n");
+        while (viScanf(vi, "%T", str) == VI_ERROR_TMO) { //wait for the response
+        }
+        //printf("%s\n", str);
+        FILE* fp = fopen(file_name, "a");
+        if (fp != 0) {
+            fprintf(fp, "%s", str);
+            }
+            fclose(fp);
+            if (i % 50 == 0) {
+                printf("%d/10000\n", i);
+        }
+        }
+    //viPrintf(vi, "WM 2,1\n");
+    /*static char staircase[100];
+    sprintf(staircase, "WV 201,%d,0,%lf,%lf,%d,%lf\n", single, V_min, V_max, nb_points, compliance);//Casting the string for the staircase
+    ViConstString Vistaircase = staircase;
+    viPrintf(vi, Vistaircase);
+    //viPrintf(vi, "WV 201,3,0,0,-1.5,400,0.01\n"); //Staircase measurement*/
+    Sleep(sleep_time);
+    viPrintf(vi, "CL 201\n"); //Disable SMU of channel 201
+    viPrintf(vi, "CL 301\n"); //Disable SMU of channel 202
+    viClose(vi);
+    viClose(defaultRM);
+    
 }
 
 void write_variability_pulse_number(double resistance_up, double resistance_down, double V_write_neg, double V_write_pos, const char* file_name, int nb_meas) {
@@ -1676,8 +1731,8 @@ void pulse_var_studies(double V_pulse_pos, double V_pulse_neg, double Res, doubl
     WGFMU_setMeasureEvent(bottom_name, meas_event2, (pulses_per_train_pos + pulses_per_train_neg) * t_pulse + 0.00000001 + t_read, 1, t_read - 0.00000004, t_read - 0.00000004, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
 
     //Check if measureEvent good
-    WGFMU_addSequence(topChannel, top_name, pulse_train);
-    WGFMU_addSequence(bottomChannel, bottom_name, pulse_train);
+    WGFMU_addSequence(topChannel, top_name, 1000000);
+    WGFMU_addSequence(bottomChannel, bottom_name, 1000000);
 
     WGFMU_openSession("GPIB0::17::INSTR");
     WGFMU_initialize();
@@ -1685,15 +1740,111 @@ void pulse_var_studies(double V_pulse_pos, double V_pulse_neg, double Res, doubl
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
     //TODO: change current range accoridngly 
-    WGFMU_setMeasureCurrentRange(bottomChannel, current_measure_range);
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
     WGFMU_execute();
     WGFMU_waitUntilCompleted();
-    FILE* fp = fopen(file_name, "w");
+    FILE* fp = fopen(file_name, "a");
     if (fp != 0) {
         fprintf(fp, "V_min; V_max; number of amplitudes; number of pulses; pulse width\n");
         fprintf(fp, "%.9lf; %.9lf; %d; %d; %d; %.9lf\n", V_pulse_pos, V_pulse_neg, pulses_per_train_pos, pulses_per_train_neg, pulse_train, t_pulse);
+        fprintf(fp, "time; voltage; current; resistance\n");
+        int measuredSize, totalSize;
+        WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+        for (int i = 0; i < measuredSize; i++) {
+            double time, value, voltage;
+            WGFMU_getMeasureValue(bottomChannel, i, &time, &value);
+            WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
+            fprintf(fp, "%.9lf; %.9lf; %.9lf; %.9lf\n", time, -voltage, value, -voltage / value);
+        }
+        fclose(fp);
+    }
+    WGFMU_initialize();
+    WGFMU_closeSession();
+}
+
+void PVS(double V_pulse_pos, double V_pulse_neg, double Res, double t_pulse, double wait_time, int cycle_number, const char* file_name) {
+    //create pattern
+    WGFMU_clear();
+    double polarity = 1;
+    double V_pulse_neg_sent = V_pulse_neg;
+    double V_pulse_pos_sent = V_pulse_pos;
+    if (V_pulse_neg < -1) {
+        V_pulse_neg_sent = -1.0;
+    }
+    if (V_pulse_pos > 1) {
+        V_pulse_pos_sent = 1.0;
+    }
+    converge_to_target(Res, tolerance_write, V_pulse_neg_sent, V_pulse_pos_sent, 0.02, file_name, 5, 1);
+    char top_name[100] = "top";
+    char bottom_name[100] = "bottom";
+    char meas_event1[100] = "meas1";
+    WGFMU_createPattern(top_name, 0);
+    WGFMU_createPattern(bottom_name, 0);
+
+    WGFMU_addVector(top_name, 0.00000001, V_pulse_pos); //10 ns rise time
+    WGFMU_addVector(top_name, t_pulse - 0.00000002, V_pulse_pos);
+    WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+    WGFMU_addVector(top_name, wait_time, 0);
+
+    WGFMU_addVector(bottom_name, 0.00000001, 0);
+    WGFMU_addVector(bottom_name, t_pulse - 0.00000002, 0);
+    WGFMU_addVector(bottom_name, 0.00000001, 0);
+    WGFMU_addVector(bottom_name, wait_time, 0);
+
+    //Apply reading pulse
+    WGFMU_addVector(top_name, 0.00000001, Vr);
+    WGFMU_addVector(top_name, t_read - 0.00000002, Vr);
+    WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+    WGFMU_addVector(top_name, wait_time, 0);
+
+    WGFMU_addVector(bottom_name, 0.00000001, 0); //10 ns rise time, 1 V
+    WGFMU_addVector(bottom_name, t_read - 0.00000002, 0);
+    WGFMU_addVector(bottom_name, 0.00000001, 0);
+    WGFMU_addVector(bottom_name, wait_time, 0);
+    
+    WGFMU_addVector(top_name, 0.00000001, V_pulse_neg); //10 ns rise time
+    WGFMU_addVector(top_name, t_pulse - 0.00000002, V_pulse_neg);
+    WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+    WGFMU_addVector(top_name, wait_time, 0);
+
+    WGFMU_addVector(bottom_name, 0.00000001, 0);
+    WGFMU_addVector(bottom_name, t_pulse - 0.00000002, 0);
+    WGFMU_addVector(bottom_name, 0.00000001, 0);
+    WGFMU_addVector(bottom_name, wait_time, 0);
+
+    WGFMU_addVector(top_name, 0.00000001, Vr);
+    WGFMU_addVector(top_name, t_read - 0.00000002, Vr);
+    WGFMU_addVector(top_name, 0.00000001, 0); //10 ns fall time, 0 V
+    WGFMU_addVector(top_name, wait_time, 0);
+
+    WGFMU_addVector(bottom_name, 0.00000001, 0); //10 ns rise time, 1 V
+    WGFMU_addVector(bottom_name, t_read - 0.00000002, 0);
+    WGFMU_addVector(bottom_name, 0.00000001, 0);
+    WGFMU_addVector(bottom_name, wait_time, 0);
+    int nb_points = (2 * (t_read + t_pulse) + 4 * wait_time) / 1e-8;
+    WGFMU_setMeasureEvent(bottom_name, meas_event1, 1e-8, nb_points-1, 1e-8, 1e-8, WGFMU_MEASURE_EVENT_DATA_RAW);
+
+    //Check if measureEvent good
+    WGFMU_addSequence(topChannel, top_name, cycle_number);
+    WGFMU_addSequence(bottomChannel, bottom_name, cycle_number);
+
+    WGFMU_openSession("GPIB0::17::INSTR");
+    WGFMU_initialize();
+    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    //TODO: change current range accoridngly 
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+    WGFMU_connect(topChannel);
+    WGFMU_connect(bottomChannel);
+    WGFMU_execute();
+    WGFMU_waitUntilCompleted();
+    FILE* fp = fopen(file_name, "a");
+    if (fp != 0) {
+        fprintf(fp, "V_p; V_n; nb_points; cycle_number; wait_time\n");
+        fprintf(fp, "%.9lf; %.9lf; %d; %d; %.9lf; %.9lf\n", V_pulse_pos, V_pulse_neg, nb_points, cycle_number, wait_time, Res);
         fprintf(fp, "time; voltage; current; resistance\n");
         int measuredSize, totalSize;
         WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
@@ -1756,6 +1907,15 @@ const char* get_timestamp(int choice, const char* folder) {
     else if (choice == 14) {
         strcat(file_name, "_read_varia.txt");
     }
+    else if (choice == 15) {
+        strcat(file_name, "_PVS.txt");
+    }
+    else if (choice == 17) {
+        strcat(file_name, "_res_list.txt");
+    }
+    else if (choice == 94) {
+        strcat(file_name, "_PRT");
+    }
     else if (choice == 95) {
         strcat(file_name, "_prog_overlap.txt");
     }
@@ -1764,6 +1924,10 @@ const char* get_timestamp(int choice, const char* folder) {
     }
     else if (choice == 97) {
         strcat(file_name, "_Gvt_pulse_folder\\");
+        _mkdir(file_name);
+    }
+    else if (choice == 98) {
+        strcat(file_name, "_PRT_folder\\");
         _mkdir(file_name);
     }
     else {
