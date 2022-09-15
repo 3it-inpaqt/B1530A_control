@@ -23,11 +23,13 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="B1530_control_WGFMU\wgfmu.lib" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="B1530_control_WGFMU\wgfmu_control.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="B1530_control_WGFMU\wgfmu.lib">
+      <Filter>Resource Files</Filter>
+    </Library>
   </ItemGroup>
 </Project>
