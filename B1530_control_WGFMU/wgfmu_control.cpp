@@ -8,6 +8,8 @@
 //#include <stdafx.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
+#include <fstream>
 #include <Windows.h>
 #include "wgfmu.h"
 #include "wgfmu_control.h"
@@ -15,97 +17,299 @@
 #include <math.h>
 #include <time.h>
 #include <direct.h>
-int current_measure_range;
+#include <string>
 
-int main() {
-    //TO DO ==> AUTOMATIC ACQUISITION OF HRS AND LRS VALUES
-    double LRS;
-    printf("Enter LRS value: ");
-    scanf("%lf", &LRS);
-    printf("Selected LRS is %f \n", LRS);
-    double HRS;
-    printf("Enter HRS value: ");
-    scanf("%lf", &HRS);
-    printf("Selected LRS is %f \n", HRS);
-    int choice;
-    printf("Which measurement? (simple = 1, Gvt = 4, data driven = 5, retention = 12, PRT = 13) \n");
-    scanf("%d", &choice);
-    if (choice == 1) {
-        printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
-        const char* timestamp = get_timestamp(choice, folder_path);
-        int advanced;
-        printf("Advance multilevel programming? (0 for yes): ");
-        scanf("%lf", &advanced);
-        double step_size;
-        printf("Enter step for pulse amplitude: ");
-        scanf("%lf", &step_size);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        simple_convergence_fast(LRS, HRS, V_LTD, V_LTP, step_size, advanced, timestamp);
-    }
-    else if (choice == 2) {
-        printf("Now executing convergence to target \n", nb_state);
-        const char* timestamp = get_timestamp(choice, folder_path);
-        double R_target;
-        printf("Enter R_target: ");
-        scanf("%lf", &R_target);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        converge_to_target(R_target, tolerance, V_LTD, V_LTP, 0.03, timestamp, 20, 1);
-    }
-    else if (choice == 3) {
-        printf("Now executing adaptative logarithmic multilevel programming of %d resistance states \n", nb_state);
-        const char* timestamp = get_timestamp(choice, folder_path);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        log_convergence_2(LRS, HRS, V_LTD, V_LTP, timestamp);
-    }
-    else if (choice == 4) {
-        printf("Now executing G(v,t) pulse scanning \n");
-        int pulse;
-        printf("Is varying pulse number: (0 for yes)\n");
-        scanf("%d", &pulse);
-        double V_pulse_min;
-        printf("Enter V_pulse_min: ");
-        scanf("%lf", &V_pulse_min);
-        double V_pulse_max;
-        printf("Enter V_pulse_max: ");
-        scanf("%lf", &V_pulse_max);
-        double list_pulse_amp[pulse_number];
-        if (V_pulse_min > V_pulse_max) {
-            const double temp = V_pulse_min;
-            V_pulse_min = V_pulse_max;
-            V_pulse_max = temp;
+/// <summary>
+/// Call from python with args to run the FE team PUND protocol
+/// Call without arguments to use the previously existing resistive memory protocol
+/// </summary>
+/// <param name="argc"></param>
+/// <param name="argv1"> Operation mode. 1 = PUND. </param>
+/// <param name="argv2"> .json settings path </param>
+/// <returns></returns>
+int main(int argc, char *argv[]) {
+    if (argc==3 && argv[1] == "1") {
+        PUND_args args;
+        parseargs(argc, argv, &args);
+
+        std::string filename = args.path + "PUND_" + std::to_string(args.PUND_decade) + std::to_string(args.PUND_number) + ".csv";
+        std::ofstream ofs;
+        ofs.open(filename, std::ofstream::out | std::ofstream::app);
+        ofs << "Time;Voltage;Current";
+        ofs.close();
+
+        int count;
+        switch (args.PUND_decade) {
+        case 0:
+            count = 0; // Pristine state, do not age
+            break;
+        case 1:
+            count = 8; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
+            break;
+        default:
+            count = pow(10, args.PUND_decade) - 1; // This will give 99,999,9999, etc.
         }
-        for (int i = 0; i < pulse_number; i++) {
-            list_pulse_amp[i] = V_pulse_min + i * (V_pulse_max - V_pulse_min) / (pulse_number - 1);
+        
+        init_session(args.currentrange);
+        aging_pulse(args.aging_shape, count);
+        PUND_pulse(args.PUND_shape, args.npoints);
+        WGFMU_exportAscii("C:\\Users\\ngariepy\\tst"); // TODO: Remove this
+
+        execute_and_save(filename);
+    }
+    else{
+        //TO DO ==> AUTOMATIC ACQUISITION OF HRS AND LRS VALUES
+        double LRS;
+        printf("Enter LRS value: ");
+        scanf("%lf", &LRS);
+        printf("Selected LRS is %f \n", LRS);
+        double HRS;
+        printf("Enter HRS value: ");
+        scanf("%lf", &HRS);
+        printf("Selected LRS is %f \n", HRS);
+        int choice;
+        printf("Which measurement? (simple = 1, Gvt = 4, data driven = 5, retention = 12, PRT = 13) \n");
+        scanf("%d", &choice);
+        if (choice == 1) {
+            printf("Now executing simple multilevel programming of %d resistance states \n", nb_state);
+            const char* timestamp = get_timestamp(choice, folder_path);
+            int advanced;
+            printf("Advance multilevel programming? (0 for yes): ");
+            scanf("%lf", &advanced);
+            double step_size;
+            printf("Enter step for pulse amplitude: ");
+            scanf("%lf", &step_size);
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            simple_convergence_fast(LRS, HRS, V_LTD, V_LTP, step_size, advanced, timestamp);
         }
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        if (pulse == 0) {
-            int nb_pulse_max;
-            printf("Enter max pulse:");
-            scanf("%d", &nb_pulse_max);
-            const char* folder = get_timestamp(97, folder_path);
-            const char* timestamp = get_timestamp(96, folder);
-            for (int k = 0; k < repeat_Gvt; k++) {
-                char ID[18]="";
+        else if (choice == 2) {
+            printf("Now executing convergence to target \n", nb_state);
+            const char* timestamp = get_timestamp(choice, folder_path);
+            double R_target;
+            printf("Enter R_target: ");
+            scanf("%lf", &R_target);
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            converge_to_target(R_target, tolerance, V_LTD, V_LTP, 0.03, timestamp, 20, 1);
+        }
+        else if (choice == 3) {
+            printf("Now executing adaptative logarithmic multilevel programming of %d resistance states \n", nb_state);
+            const char* timestamp = get_timestamp(choice, folder_path);
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            log_convergence_2(LRS, HRS, V_LTD, V_LTP, timestamp);
+        }
+        else if (choice == 4) {
+            printf("Now executing G(v,t) pulse scanning \n");
+            int pulse;
+            printf("Is varying pulse number: (0 for yes)\n");
+            scanf("%d", &pulse);
+            double V_pulse_min;
+            printf("Enter V_pulse_min: ");
+            scanf("%lf", &V_pulse_min);
+            double V_pulse_max;
+            printf("Enter V_pulse_max: ");
+            scanf("%lf", &V_pulse_max);
+            double list_pulse_amp[pulse_number];
+            if (V_pulse_min > V_pulse_max) {
+                const double temp = V_pulse_min;
+                V_pulse_min = V_pulse_max;
+                V_pulse_max = temp;
+            }
+            for (int i = 0; i < pulse_number; i++) {
+                list_pulse_amp[i] = V_pulse_min + i * (V_pulse_max - V_pulse_min) / (pulse_number - 1);
+            }
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            if (pulse == 0) {
+                int nb_pulse_max;
+                printf("Enter max pulse:");
+                scanf("%d", &nb_pulse_max);
+                const char* folder = get_timestamp(97, folder_path);
+                const char* timestamp = get_timestamp(96, folder);
+                for (int k = 0; k < repeat_Gvt; k++) {
+                    char ID[18]="";
+                    sprintf(ID, "_%d.txt", k);
+                    char file_name[200] = "";
+                    strcat(file_name, timestamp);
+                    strcat(file_name, ID);
+                    puts(file_name);
+                    printf("\nFOLDER NAME\n");
+                    puts(timestamp);
+                    Gvt_pulse_2(nb_pulse_max, list_pulse_amp, V_LTD, V_LTP, file_name);
+                }
+            }
+            else if (pulse == 1) {
+                const char* timestamp = get_timestamp(choice, folder_path);
+                Gvt(list_time, list_pulse_amp, V_LTD, V_LTP, timestamp);
+            }
+       
+        }
+        else if (choice == 5) {
+            printf("Now executing measurement for data driven model fitting \n", nb_state);
+            double V_pulse_min;
+            printf("Enter V_min: ");
+            scanf("%lf", &V_pulse_min);
+            double V_pulse_max;
+            printf("Enter V_max: ");
+            scanf("%lf", &V_pulse_max);
+            double width_pulse;
+            printf("Enter pulse width (scientific notation): ");
+            scanf("%lf", &width_pulse);
+            int pulse_train;
+            printf("Enter desired number of pulse: ");
+            scanf("%d", &pulse_train);
+            for (int i = 0; i < repeat_data_driven; i++) {
+                const char* timestamp = get_timestamp(choice, folder_path);
+                converge_to_target(6000, tolerance, -1.5, 1.4, 0.05, timestamp, 1, 1);
+                data_driven_fitting(V_pulse_min, V_pulse_max, t_pulse, pulse_train, timestamp);
+            }
+        }
+        else if (choice == 6) {
+            printf("Read variability with SMUs\n");
+            DC_sweep(topChannelSMU, bottomChannelSMU);
+        }
+        else if (choice == 7) {
+            printf("Now executing triangle multilevel programming of %d resistance states \n", nb_state);
+            const char* timestamp = get_timestamp(choice, folder_path);
+            double step_size;
+            printf("Enter step for pulse amplitude: ");
+            scanf("%lf", &step_size);
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            simple_triangle_convergence(LRS, HRS, V_LTD, V_LTP, step_size, timestamp);
+        }
+
+        else if (choice == 8) {
+        printf("Now executing write variability measurements\n");
+        double V_write_pos;
+        printf("Enter V_write_pos: ");
+        scanf("%lf", &V_write_pos);
+        double V_write_neg;
+        printf("Enter V_write_neg: ");
+        scanf("%lf", &V_write_neg);
+        double R_min;
+        printf("Enter R_min: ");
+        scanf("%lf", &R_min);
+        double R_max;
+        printf("Enter R_max: ");
+        scanf("%lf", &R_max);
+        int nb_meas;
+        printf("Enter number of measurements: ");
+        scanf("%d", &nb_meas);
+        double resistance = R_min;
+        for (int i = 0; i < nb_meas; i++) {
+            const char* timestamp = get_timestamp((int)resistance, folder_path);
+            write_variability_pulse_number(R_max, R_min, V_write_neg, V_write_pos, timestamp, nb_meas);
+        }
+        }
+
+        else if (choice == 9) {
+        printf("Now executing DC source sweep\n");
+        double V_target_min;
+        printf("Enter Min voltage for sweep: ");
+        scanf("%lf", &V_target_min);
+        double V_target_max;
+        printf("Enter Max voltage for sweep: ");
+        scanf("%lf", &V_target_max);
+        double resolution;
+        printf("Enter target voltage resolution in V: ");
+        scanf("%lf", &resolution);
+        const char* timestamp = get_timestamp(choice, folder_path);
+        DC_source_sweep(V_target_min, V_target_max, resolution, timestamp); //change timestamp for measurement
+        }
+
+        else if (choice == 10) {
+        printf("Now executing Voltage prog\n");
+        double V_target;
+        printf("Enter voltage target in V: ");
+        scanf("%lf", &V_target);
+        const char* timestamp = get_timestamp(choice, folder_path);
+        DC_voltage_prog(V_target, timestamp); //change timestamp for measurement
+        }
+    
+        else if (choice == 11) {
+            double V_pulse_pos;
+            printf("Enter Vp: ");
+            scanf("%lf", &V_pulse_pos);
+            double V_pulse_neg;
+            printf("Enter Vn: ");
+            scanf("%lf", &V_pulse_neg);
+            double width_pulse = 2e-7;
+            int pulse_train = 1;
+            int nit;
+            double pulse_trains[1] = { 1 }; //Keep to one depending 
+            printf("Enter number of iteration: ");
+            scanf("%d", &nit);
+            for (int i = 0; i < 2; i++) {
+                const char* timestamp = get_timestamp(choice, folder_path);
+                //V_pulse_neg = pulse_matching(V_pulse_pos,width_pulse,HRS,0.01); //If you want to match the pulses so that stability stays longer
+                pulse_var_studies(V_pulse_pos, V_pulse_neg, HRS, width_pulse, pulse_train, pulse_train, 1e6, timestamp);
+            }
+    }
+        else if (choice == 12) {
+            printf("Now executing retention tests \n");
+            const char* timestamp = get_timestamp(choice, folder_path);
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            double R_target;
+            printf("Enter Target resistance: ");
+            scanf("%lf", &R_target);
+            double total_time;
+            printf("Enter Total time(h): ");
+            scanf("%lf", &total_time);
+            double sampling_time;
+            printf("Enter sampling time(s): ");
+            scanf("%lf", &sampling_time);
+            if (sampling_time > total_time*3600) {
+                sampling_time = 10;
+            }
+            retention(total_time*3600, sampling_time, R_target, V_LTD, V_LTP, timestamp);
+        }
+
+        else if (choice == 13) {
+            printf("Now executing Pulsed Transient Response (PRT)\n");
+            double R_target;
+            printf("Enter starting resistance: ");
+            scanf("%lf", &R_target);
+            double Vp;
+            printf("Enter Vp: ");
+            scanf("%lf", &Vp);
+            double Vn;
+            printf("Enter Vn: ");
+            scanf("%lf", &Vn);
+            double nb_pulse;
+            printf("Enter nb_pulse: ");
+            scanf("%lf", &nb_pulse);
+            const char* folder = get_timestamp(98, folder_path);
+            const char* timestamp = get_timestamp(94, folder);
+            for (int k = 0; k < repeat_PRT; k++) {
+                char ID[18] = "";
                 sprintf(ID, "_%d.txt", k);
                 char file_name[200] = "";
                 strcat(file_name, timestamp);
@@ -113,246 +317,86 @@ int main() {
                 puts(file_name);
                 printf("\nFOLDER NAME\n");
                 puts(timestamp);
-                Gvt_pulse_2(nb_pulse_max, list_pulse_amp, V_LTD, V_LTP, file_name);
+                converge_to_target(R_target, tolerance, -0.7, 0.5, 0.025, file_name, 5, 1);
+                PRT(Vp, Vn, nb_pulse, file_name);;
             }
         }
-        else if (pulse == 1) {
+        else if (choice == 14) {
+            printf("Now executing read variability tests \n");
             const char* timestamp = get_timestamp(choice, folder_path);
-            Gvt(list_time, list_pulse_amp, V_LTD, V_LTP, timestamp);
-        }
-       
+            double V_LTP;
+            printf("Enter V_LTP: ");
+            scanf("%lf", &V_LTP);
+            double V_LTD;
+            printf("Enter V_LTD: ");
+            scanf("%lf", &V_LTD);
+            double R_target;
+            printf("Enter Target resistance: ");
+            scanf("%lf", &R_target);
+            double total_time;
+            printf("Enter Total time(s): ");
+            scanf("%lf", &total_time);
+            double sampling_time;
+            printf("Enter sampling time (scientific notation): ");
+            scanf("%lf", &sampling_time);
+            if (sampling_time > total_time) {
+                sampling_time = 1e-6;
+            }
+            read_variability(total_time, sampling_time, R_target, V_LTD, V_LTP, timestamp);
     }
-    else if (choice == 5) {
-        printf("Now executing measurement for data driven model fitting \n", nb_state);
-        double V_pulse_min;
-        printf("Enter V_min: ");
-        scanf("%lf", &V_pulse_min);
-        double V_pulse_max;
-        printf("Enter V_max: ");
-        scanf("%lf", &V_pulse_max);
-        double width_pulse;
-        printf("Enter pulse width (scientific notation): ");
-        scanf("%lf", &width_pulse);
-        int pulse_train;
-        printf("Enter desired number of pulse: ");
-        scanf("%d", &pulse_train);
-        for (int i = 0; i < repeat_data_driven; i++) {
-            const char* timestamp = get_timestamp(choice, folder_path);
-            converge_to_target(6000, tolerance, -1.5, 1.4, 0.05, timestamp, 1, 1);
-            data_driven_fitting(V_pulse_min, V_pulse_max, t_pulse, pulse_train, timestamp);
-        }
+        else if (choice == 15) {
+            const char* timestamp = get_timestamp(15, folder_path);
+            double V_p;
+            printf("Enter V_p: ");
+            scanf("%lf", &V_p);
+            double V_n;
+            printf("Enter V_n: ");
+            scanf("%lf", &V_n);
+            double R_target;
+            printf("Enter Target resistance: ");
+            scanf("%lf", &R_target);
+            double wait_time;
+            printf("Enter wait time (scientific notation): ");
+            scanf("%lf", &wait_time);
+            PVS(V_p, V_n, R_target, t_pulse, wait_time, 10, timestamp);
     }
-    else if (choice == 6) {
-        printf("Read variability with SMUs\n");
-        DC_sweep(topChannelSMU, bottomChannelSMU);
+        else if (choice == 16) {
+            const char* timestamp = get_timestamp(1, folder_path);
+            WGFMU_openSession("GPIB0::17::INSTR"); //18
+            WGFMU_initialize();
+            WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+            WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+            WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+            WGFMU_connect(topChannel);
+            WGFMU_connect(bottomChannel);
+            double pulse_amp = 0;
+            double R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, timestamp, 1, 0);
+            printf("Extracted resistance is %f \n", R_c);
+            WGFMU_initialize();
+            WGFMU_closeSession();
     }
-    else if (choice == 7) {
-        printf("Now executing triangle multilevel programming of %d resistance states \n", nb_state);
-        const char* timestamp = get_timestamp(choice, folder_path);
-        double step_size;
-        printf("Enter step for pulse amplitude: ");
-        scanf("%lf", &step_size);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        simple_triangle_convergence(LRS, HRS, V_LTD, V_LTP, step_size, timestamp);
-    }
+        else if (choice == 17) {
+        const char* timestamp = get_timestamp(17, folder_path);
+            FILE* fa;
+            char buffer[64];
+            fa = fopen(path_list_res, "r");
+            while (fgets(buffer, 64, fa)) {
+                double R_target = atof(buffer);
+                converge_to_target(R_target, 0.01, -1.0, 1.0, 0.02, timestamp, 5, 0);
+            }
 
-    else if (choice == 8) {
-    printf("Now executing write variability measurements\n");
-    double V_write_pos;
-    printf("Enter V_write_pos: ");
-    scanf("%lf", &V_write_pos);
-    double V_write_neg;
-    printf("Enter V_write_neg: ");
-    scanf("%lf", &V_write_neg);
-    double R_min;
-    printf("Enter R_min: ");
-    scanf("%lf", &R_min);
-    double R_max;
-    printf("Enter R_max: ");
-    scanf("%lf", &R_max);
-    int nb_meas;
-    printf("Enter number of measurements: ");
-    scanf("%d", &nb_meas);
-    double resistance = R_min;
-    for (int i = 0; i < nb_meas; i++) {
-        const char* timestamp = get_timestamp((int)resistance, folder_path);
-        write_variability_pulse_number(R_max, R_min, V_write_neg, V_write_pos, timestamp, nb_meas);
-    }
-    }
-
-    else if (choice == 9) {
-    printf("Now executing DC source sweep\n");
-    double V_target_min;
-    printf("Enter Min voltage for sweep: ");
-    scanf("%lf", &V_target_min);
-    double V_target_max;
-    printf("Enter Max voltage for sweep: ");
-    scanf("%lf", &V_target_max);
-    double resolution;
-    printf("Enter target voltage resolution in V: ");
-    scanf("%lf", &resolution);
-    const char* timestamp = get_timestamp(choice, folder_path);
-    DC_source_sweep(V_target_min, V_target_max, resolution, timestamp); //change timestamp for measurement
-    }
-
-    else if (choice == 10) {
-    printf("Now executing Voltage prog\n");
-    double V_target;
-    printf("Enter voltage target in V: ");
-    scanf("%lf", &V_target);
-    const char* timestamp = get_timestamp(choice, folder_path);
-    DC_voltage_prog(V_target, timestamp); //change timestamp for measurement
-    }
-    
-    else if (choice == 11) {
-        double V_pulse_pos;
-        printf("Enter Vp: ");
-        scanf("%lf", &V_pulse_pos);
-        double V_pulse_neg;
-        printf("Enter Vn: ");
-        scanf("%lf", &V_pulse_neg);
-        double width_pulse = 2e-7;
-        int pulse_train = 1;
-        int nit;
-        double pulse_trains[1] = { 1 }; //Keep to one depending 
-        printf("Enter number of iteration: ");
-        scanf("%d", &nit);
-        for (int i = 0; i < 2; i++) {
-            const char* timestamp = get_timestamp(choice, folder_path);
-            //V_pulse_neg = pulse_matching(V_pulse_pos,width_pulse,HRS,0.01); //If you want to match the pulses so that stability stays longer
-            pulse_var_studies(V_pulse_pos, V_pulse_neg, HRS, width_pulse, pulse_train, pulse_train, 1e6, timestamp);
+            fclose(fa);
         }
-}
-    else if (choice == 12) {
-        printf("Now executing retention tests \n");
-        const char* timestamp = get_timestamp(choice, folder_path);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        double R_target;
-        printf("Enter Target resistance: ");
-        scanf("%lf", &R_target);
-        double total_time;
-        printf("Enter Total time(h): ");
-        scanf("%lf", &total_time);
-        double sampling_time;
-        printf("Enter sampling time(s): ");
-        scanf("%lf", &sampling_time);
-        if (sampling_time > total_time*3600) {
-            sampling_time = 10;
-        }
-        retention(total_time*3600, sampling_time, R_target, V_LTD, V_LTP, timestamp);
-    }
-
-    else if (choice == 13) {
-        printf("Now executing Pulsed Transient Response (PRT)\n");
-        double R_target;
-        printf("Enter starting resistance: ");
-        scanf("%lf", &R_target);
-        double Vp;
-        printf("Enter Vp: ");
-        scanf("%lf", &Vp);
-        double Vn;
-        printf("Enter Vn: ");
-        scanf("%lf", &Vn);
-        double nb_pulse;
-        printf("Enter nb_pulse: ");
-        scanf("%lf", &nb_pulse);
-        const char* folder = get_timestamp(98, folder_path);
-        const char* timestamp = get_timestamp(94, folder);
-        for (int k = 0; k < repeat_PRT; k++) {
-            char ID[18] = "";
-            sprintf(ID, "_%d.txt", k);
-            char file_name[200] = "";
-            strcat(file_name, timestamp);
-            strcat(file_name, ID);
-            puts(file_name);
-            printf("\nFOLDER NAME\n");
-            puts(timestamp);
-            converge_to_target(R_target, tolerance, -0.7, 0.5, 0.025, file_name, 5, 1);
-            PRT(Vp, Vn, nb_pulse, file_name);;
+        else {
+            printf("Enter a defined operation type! \n You entered %d", choice);
         }
     }
-    else if (choice == 14) {
-        printf("Now executing read variability tests \n");
-        const char* timestamp = get_timestamp(choice, folder_path);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        double R_target;
-        printf("Enter Target resistance: ");
-        scanf("%lf", &R_target);
-        double total_time;
-        printf("Enter Total time(s): ");
-        scanf("%lf", &total_time);
-        double sampling_time;
-        printf("Enter sampling time (scientific notation): ");
-        scanf("%lf", &sampling_time);
-        if (sampling_time > total_time) {
-            sampling_time = 1e-6;
-        }
-        read_variability(total_time, sampling_time, R_target, V_LTD, V_LTP, timestamp);
-}
-    else if (choice == 15) {
-        const char* timestamp = get_timestamp(15, folder_path);
-        double V_p;
-        printf("Enter V_p: ");
-        scanf("%lf", &V_p);
-        double V_n;
-        printf("Enter V_n: ");
-        scanf("%lf", &V_n);
-        double R_target;
-        printf("Enter Target resistance: ");
-        scanf("%lf", &R_target);
-        double wait_time;
-        printf("Enter wait time (scientific notation): ");
-        scanf("%lf", &wait_time);
-        PVS(V_p, V_n, R_target, t_pulse, wait_time, 10, timestamp);
-}
-    else if (choice == 16) {
-        const char* timestamp = get_timestamp(1, folder_path);
-        WGFMU_openSession("GPIB0::17::INSTR"); //18
-        WGFMU_initialize();
-        WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-        WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-        WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
-        WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
-        WGFMU_connect(topChannel);
-        WGFMU_connect(bottomChannel);
-        double pulse_amp = 0;
-        double R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, timestamp, 1, 0);
-        printf("Extracted resistance is %f \n", R_c);
-        WGFMU_initialize();
-        WGFMU_closeSession();
-}
-    else if (choice == 17) {
-    const char* timestamp = get_timestamp(17, folder_path);
-        FILE* fa;
-        char buffer[64];
-        fa = fopen(path_list_res, "r");
-        while (fgets(buffer, 64, fa)) {
-            double R_target = atof(buffer);
-            converge_to_target(R_target, 0.01, -1.0, 1.0, 0.02, timestamp, 5, 0);
-        }
-
-        fclose(fa);
-}
-    else {
-        printf("Enter a defined operation type! \n You entered %d", choice);
-    }
-
     return 0;
+}
+
+void parseargs(int argc, char* argv[], PUND_args* args){
+
 }
 
 double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name) // Pulse voltage output
@@ -461,9 +505,97 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
     WGFMU_closeSession();
 }
 
+/// <summary>
+/// Adds a square wave to topChannel and 0V to bottomChannel for cycling FE
+/// Each wave does a positive and negative cycle per count
+/// </summary>
+/// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
+/// <param name="count"> Number aging cycles to do. If count = 1, there is 1 positive AND 1 negative pulse. </param>
+void aging_pulse(pulseshape shape, double count) {
+    if (count == 0) return;
+
+    WGFMU_createPattern("pulsepos", 0);
+    WGFMU_addVector("pulsepos", shape.tspace, 0); // Delay is prepended
+    WGFMU_addVector("pulsepos", shape.trise, shape.Vpulse); // Rise to Vpulse
+    WGFMU_addVector("pulsepos", shape.twidth, shape.Vpulse); // Hold
+    WGFMU_addVector("pulsepos", shape.trise, 0); // Return to 0
+    WGFMU_createMultipliedPattern("pulseneg", "pulsepos", 1, -1);
+    WGFMU_createMergedPattern("pulse", "pulsepos", "pulseneg", WGFMU_AXIS_TIME);
+    WGFMU_addSequence(topChannel, "pulse", count); //1 pulse output
+    
+    // Create a measure pulse of the same lenght, where all voltages are 0
+    WGFMU_createMultipliedPattern("gnd", "pulse", 1, -1); // Can't multiplty voltage by 0
+    WGFMU_createMergedPattern("gnd", "gnd", "pulse", WGFMU_AXIS_VOLTAGE); // So add the opposite
+    WGFMU_addSequence(bottomChannel, "gnd", count);
+}
+
+/// <summary>
+/// Adds PUND procedure pulses to topChannel, sets bottomChannel to 0V.
+/// Adds a current measurement event to bottomChannel.
+/// </summary>
+/// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
+/// <param name="npoints"> How many points of data to record. </param>
+void PUND_pulse(pulseshape shape, int npoints) {
+    WGFMU_createPattern("P", 0);
+    WGFMU_addVector("P", shape.tspace, 0); // Delay is prepended
+    WGFMU_addVector("P", shape.trise, shape.Vpulse); // Rise to Vpulse
+    if (shape.twidth != 0) WGFMU_addVector("P", shape.twidth, shape.Vpulse); // Hold at VPULSE
+    WGFMU_addVector("P", shape.trise, 0); // Return to 0
+    WGFMU_createMergedPattern("PU", "P", "P", WGFMU_AXIS_TIME);
+    WGFMU_createMultipliedPattern("ND", "PU", 1, -1);
+    WGFMU_createMergedPattern("PUND", "PU", "ND", WGFMU_AXIS_TIME);
+    WGFMU_addSequence(topChannel, "PUND", 1);
+
+    // Create a measure pulse of the same lenght, where all voltages are 0
+    WGFMU_createMultipliedPattern("meas", "PUND", 1, -1); // Can't multiplty voltage by 0
+    WGFMU_createMergedPattern("meas", "meas", "PUND", WGFMU_AXIS_VOLTAGE); // So add the opposite
+
+    double ttotal = 4 * (shape.tspace + 2 * shape.trise + shape.twidth);
+    double tinterval = ttotal / npoints;
+    WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints, tinterval, 0, WGFMU_MEASURE_EVENT_DATA_RAW); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
+    WGFMU_addSequence(bottomChannel, "meas", 1);
+}
+/// <summary>
+/// Inits the WGFMU with a specific current measure range.
+/// </summary>
+/// <param name="currentrange"> Current measure range, in µA. (1, 10, 100, 1000 or 10 000). </param>
+void init_session(double currentrange) {
+    WGFMU_openSession("GPIB0::17::INSTR"); //18
+    WGFMU_initialize();
+    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_OFFSET + (int)log10(currentrange));
+    WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    WGFMU_connect(topChannel);
+    WGFMU_connect(bottomChannel);
+}
+
+/// <summary>
+/// Executes the sequences that are in each channel, saves data to csv.
+/// </summary>
+/// <param name="filename"> Name of the file to save the data. </param>
+void execute_and_save(std::string filename) {
+    WGFMU_execute();
+    WGFMU_waitUntilCompleted();
+
+    std::ofstream file;
+    file.open(filename, std::ofstream::app);
+        
+    int measuredSize, totalSize;
+    WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+    double time, current, voltage;
+    for (int i = 0; i < measuredSize; i++) {
+        WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &current);
+        WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
+        file << time << ";" << voltage << ";" << current;
+    }
+  
+    file.close();
+    WGFMU_initialize();
+    WGFMU_closeSession();
+}
 double apply_pulse_new(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name, int save, int measure) // Pulse voltage output
 {
-
     WGFMU_clear(); // 9
     WGFMU_createPattern("pulse", 0); // 0 ms, 0 V
     WGFMU_addVector("pulse", 0.00000001, Vpulse); //10 ns rise time, 1 V
