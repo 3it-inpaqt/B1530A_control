@@ -9,61 +9,61 @@
 // Modified by: Nicolas Gariépy
 // Date: 2022-09-19
 // Universite De Sherbrooke (3IT)
-// Decription: Adds functions to do PUND protocol measurements, intended for use on ferroelectric devices.
+// Description: Adds functions to do PUND protocol measurements, intended for use on ferroelectric devices.
 // These functions are run by proxy of a python script used to generate configs and visualize the data.
 
+#include <direct.h>
+#include <fstream>
+#include "include/nlohmann/json.hpp"
+#include <iostream>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
-#include <fstream>
+#include <string>
+#include <time.h>
+#include "visa.h"
 #include <Windows.h>
 #include "wgfmu.h"
 #include "wgfmu_control.h"
-#include "visa.h"
-#include <math.h>
-#include <time.h>
-#include <direct.h>
-#include <string>
-#include "include/nlohmann/json.hpp"
-
 
 /// <summary>
-/// Call from python with args to run the FE team PUND protocol
 /// Call without arguments to use the previously existing resistive memory protocol
+/// Call from python with args to run the FE team PUND protocol
 /// </summary>
 /// <param name="argc"></param>
 /// <param name="argv1"> Operation mode. 1 = PUND. </param>
-/// <param name="argv2"> .json settings path </param>
+/// <param name="argv2"> PUND_decade </param>
+/// <param name="argv2"> PUND_number </param>
+/// <param name="argv3"> .json settings path </param>
 /// <returns></returns>
 int main(int argc, char *argv[]) {
-    if (argc==3) {
+    if (argc==5) {
         if (*argv[1] == '1') {
             PUND_args args;
             parseargs(argc, argv, &args);
 
-            std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) + std::to_string(args.PUND_number) ;
-            std::ofstream ofs;
-            ofs.open(filename + ".csv", std::ofstream::out | std::ofstream::app);
-            ofs << "Time;Voltage;Current";
-            ofs.close();
-
-            int count;
+            // Filename example : PUND_32.csv, One .csv by measurement, not a .xls by decade like Keithley
+            std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) 
+                                   + std::to_string(args.PUND_number) + ".csv";
+            int cycle_count;
             switch (args.PUND_decade) {
             case 0:
-                count = 0; // Pristine state, do not age
+                cycle_count = 0; // Pristine state, do not age
                 break;
             case 1:
-                count = 8; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
+                cycle_count = 8; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
                 break;
             default:
-                count = pow(10, args.PUND_decade) - 1; // This will give 99,999,9999, etc.
+                cycle_count = pow(10, args.PUND_decade) - 1; // This will give 99,999,9999, etc.
             }
 
             init_session(args.currentrange);
-            aging_pulse(args.aging_shape, count);
+            aging_pulse(args.aging_shape, cycle_count);
             PUND_pulse(args.PUND_shape, args.npoints);
-            execute_and_save(filename + ".csv");
-            WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
+            execute_and_save(filename);
+
+            if(args.PUND_number == 0) // For reference, the settings used are placed next to data 
+                WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
         }
     }
     else{
@@ -413,10 +413,10 @@ int main(int argc, char *argv[]) {
 void parseargs(int argc, char* argv[], PUND_args* args){
     using json = nlohmann::json;
 
-    std::ifstream f(argv[2]);
+    std::ifstream f(argv[argc-1]);
     json jargs = json::parse(f);
-    args->PUND_decade = jargs["PUND_decade"];
-    args->PUND_number = jargs["PUND_number"];
+    args->PUND_decade = std::stoi(argv[2]);
+    args->PUND_number = std::stoi(argv[3]);
     args->aging_shape.Vpulse = jargs["aging_shape"]["Vpulse"];
     args->aging_shape.trise = jargs["aging_shape"]["trise"];
     args->aging_shape.twidth = jargs["aging_shape"]["twidth"];
@@ -611,16 +611,16 @@ void execute_and_save(std::string filename) {
 
     std::ofstream ofs;
     ofs.open(filename, std::ofstream::app);
-        
+    ofs << "Time;Voltage;Current" << std::endl;
+    
     int measuredSize, totalSize;
     WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
     double time, current, voltage;
     for (int i = 0; i < measuredSize; i++) {
         WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &current);
         WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
-        ofs << time << ";" << voltage << ";" << current;
+        ofs << time << ";" << voltage << ";" << current << std::endl;
     }
-  
     ofs.close();
     WGFMU_initialize();
     WGFMU_closeSession();
