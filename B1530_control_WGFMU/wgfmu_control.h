@@ -5,9 +5,38 @@
 
 
 // Methods
+/// <param name="Vpulse"> Max voltage of the pulse. </param>
+/// <param name="trise"> Time to raise to Vpulse and fall to 0V. </param>
+/// <param name="twidth"> Time spent at Vpulse, after trise. </param>
+/// <param name="tspace"> Time spent at 0V before each pulse. </param>
+typedef struct pulseshape {
+	double Vpulse;
+	double trise;
+	double twidth;
+	double tspace;
+};
+
+/// <param name="PUND_decade"> Number of cycle done before this PUND measure. 10^decade = Qty of aging pulses </param>
+/// <param name="PUND_number"> Number of the pusle WITHIN the decade (0 to 9) </param>
+/// <param name="aging_shape"> Shape of the aging cycles. </param>
+/// <param name="PUND_shape"> Shape of the PUND pulses. </param>
+/// <param name="npoints"> How many points to capture in the current measurement. </param>
+/// <param name="currentrange"> Current range to be used, in µA. </param>
+/// <param name="path"> Folder where all the .csv data will be output. </param>
+typedef struct PUND_args {
+	int PUND_decade;
+	int PUND_number;
+	pulseshape aging_shape;
+	pulseshape PUND_shape;
+	double npoints;
+	double currentrange;
+	std::string path;
+};
+
 double read_resistance(double, double, int, int, double, double, const char*);
 void write_resistance(double, double, int, int);
 void write_resistance_triangle(double, double, int, int);
+void parseargs(int argc, char* argv[], PUND_args* args);
 void aging_pulse(pulseshape shape, double count);
 void PUND_pulse(pulseshape shape, int npoints);
 void init_session(double range);
@@ -96,31 +125,4 @@ static const int nb_memristor = 1;
 static const double V_in = 0.001;
 static const double R_L = 1;
 
-/// <param name="Vpulse"> Max voltage of the pulse. </param>
-/// <param name="trise"> Time to raise to Vpulse and fall to 0V. </param>
-/// <param name="twidth"> Time spent at Vpulse, after trise. </param>
-/// <param name="tspace"> Time spent at 0V before each pulse. </param>
-struct pulseshape {
-	double Vpulse;
-	double trise;
-	double twidth;
-	double tspace;
-};
-
-/// <param name="PUND_decade"> Number of cycle done before this PUND measure. 10^decade = Qty of aging pulses </param>
-/// <param name="PUND_number"> Number of the pusle WITHIN the decade (0 to 9) </param>
-/// <param name="aging_shape"> Shape of the aging cycles. </param>
-/// <param name="PUND_shape"> Shape of the PUND pulses. </param>
-/// <param name="npoints"> How many points to capture in the current measurement. </param>
-/// <param name="currentrange"> Current range to be used, in µA. </param>
-/// <param name="path"> Folder where all the .csv data will be output. </param>
-struct PUND_args {
-	int PUND_decade;
-	int PUND_number;
-	pulseshape aging_shape;
-	pulseshape PUND_shape;
-	double npoints;
-	double currentrange;
-	std::string path;
-};
 

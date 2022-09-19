@@ -18,6 +18,8 @@
 #include <time.h>
 #include <direct.h>
 #include <string>
+#include "include/nlohmann/json.hpp"
+
 
 /// <summary>
 /// Call from python with args to run the FE team PUND protocol
@@ -28,34 +30,35 @@
 /// <param name="argv2"> .json settings path </param>
 /// <returns></returns>
 int main(int argc, char *argv[]) {
-    if (argc==3 && argv[1] == "1") {
-        PUND_args args;
-        parseargs(argc, argv, &args);
+    if (argc==3) {
+        if (*argv[1] == '1') {
+            PUND_args args;
+            parseargs(argc, argv, &args);
 
-        std::string filename = args.path + "PUND_" + std::to_string(args.PUND_decade) + std::to_string(args.PUND_number) + ".csv";
-        std::ofstream ofs;
-        ofs.open(filename, std::ofstream::out | std::ofstream::app);
-        ofs << "Time;Voltage;Current";
-        ofs.close();
+            std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) + std::to_string(args.PUND_number) ;
+            std::ofstream ofs;
+            ofs.open(filename + ".csv", std::ofstream::out | std::ofstream::app);
+            ofs << "Time;Voltage;Current";
+            ofs.close();
 
-        int count;
-        switch (args.PUND_decade) {
-        case 0:
-            count = 0; // Pristine state, do not age
-            break;
-        case 1:
-            count = 8; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
-            break;
-        default:
-            count = pow(10, args.PUND_decade) - 1; // This will give 99,999,9999, etc.
+            int count;
+            switch (args.PUND_decade) {
+            case 0:
+                count = 0; // Pristine state, do not age
+                break;
+            case 1:
+                count = 8; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
+                break;
+            default:
+                count = pow(10, args.PUND_decade) - 1; // This will give 99,999,9999, etc.
+            }
+
+            init_session(args.currentrange);
+            aging_pulse(args.aging_shape, count);
+            PUND_pulse(args.PUND_shape, args.npoints);
+            execute_and_save(filename + ".csv");
+            WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
         }
-        
-        init_session(args.currentrange);
-        aging_pulse(args.aging_shape, count);
-        PUND_pulse(args.PUND_shape, args.npoints);
-        WGFMU_exportAscii("C:\\Users\\ngariepy\\tst"); // TODO: Remove this
-
-        execute_and_save(filename);
     }
     else{
         //TO DO ==> AUTOMATIC ACQUISITION OF HRS AND LRS VALUES
@@ -395,8 +398,30 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+/// <summary>
+/// Parses .json file in argv[2] and fills the struct args.
+/// </summary>
+/// <param name="argc"></param>
+/// <param name="argv"></param>
+/// <param name="args"></param>
 void parseargs(int argc, char* argv[], PUND_args* args){
+    using json = nlohmann::json;
 
+    std::ifstream f(argv[2]);
+    json jargs = json::parse(f);
+    args->PUND_decade = jargs["PUND_decade"];
+    args->PUND_number = jargs["PUND_number"];
+    args->aging_shape.Vpulse = jargs["aging_shape"]["Vpulse"];
+    args->aging_shape.trise = jargs["aging_shape"]["trise"];
+    args->aging_shape.twidth = jargs["aging_shape"]["twidth"];
+    args->aging_shape.tspace = jargs["aging_shape"]["tspace"];
+    args->PUND_shape.Vpulse = jargs["PUND_shape"]["Vpulse"];
+    args->PUND_shape.trise = jargs["PUND_shape"]["trise"];
+    args->PUND_shape.twidth = jargs["PUND_shape"]["twidth"];
+    args->PUND_shape.tspace = jargs["PUND_shape"]["tspace"];
+    args->npoints = jargs["npoints"];
+    args->currentrange = jargs["currentrange"];
+    args->path = jargs["path"];
 }
 
 double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name) // Pulse voltage output
@@ -578,8 +603,8 @@ void execute_and_save(std::string filename) {
     WGFMU_execute();
     WGFMU_waitUntilCompleted();
 
-    std::ofstream file;
-    file.open(filename, std::ofstream::app);
+    std::ofstream ofs;
+    ofs.open(filename, std::ofstream::app);
         
     int measuredSize, totalSize;
     WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
@@ -587,10 +612,10 @@ void execute_and_save(std::string filename) {
     for (int i = 0; i < measuredSize; i++) {
         WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &current);
         WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
-        file << time << ";" << voltage << ";" << current;
+        ofs << time << ";" << voltage << ";" << current;
     }
   
-    file.close();
+    ofs.close();
     WGFMU_initialize();
     WGFMU_closeSession();
 }
