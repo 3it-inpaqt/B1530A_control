@@ -4,9 +4,8 @@
 # Installation
 Libraries, drivers, IDE reccomandé. À installer dans l'ordre.
 
--Visual Studio 2022
--NI 488
--NI Vista
--Keysight IO libraries Suite
--Keysight B1530A WGFMU Instrument library
-
+1. Visual Studio 2022
+2. NI 488
+3. NI Vista
+4. Keysight IO libraries Suite
+5. Keysight B1530A WGFMU Instrument library
