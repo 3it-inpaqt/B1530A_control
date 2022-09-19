@@ -36,11 +36,6 @@ typedef struct PUND_args {
 double read_resistance(double, double, int, int, double, double, const char*);
 void write_resistance(double, double, int, int);
 void write_resistance_triangle(double, double, int, int);
-void parseargs(int argc, char* argv[], PUND_args* args);
-void aging_pulse(pulseshape shape, double count);
-void PUND_pulse(pulseshape shape, int npoints);
-void init_session(double range);
-void execute_and_save(std::string filename);
 double apply_pulse_new(double, double, int, int, double, double, const char*, int, int);
 double extract_results(int, int, int, double, double, const char*);
 void simple_convergence(double, double, double, double, double, const char*);
@@ -64,6 +59,14 @@ void DC_voltage_prog(double, const char*);
 void pulse_var_studies(double, double, double, double, int, int, int, const char*);
 void PVS(double , double , double , double , double , int , const char*);
 const char* get_timestamp(int, const char*);
+
+// Ferro / Pund specific funcitons
+void parseargs(int argc, char* argv[], PUND_args* args);
+void aging_pulse(pulseshape shape, double count);
+void PUND_pulse(pulseshape shape, int npoints);
+void init_session(double range);
+void execute_and_save(std::string filename);
+
 
 //Global parameters
 static const char* folder_path = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\";

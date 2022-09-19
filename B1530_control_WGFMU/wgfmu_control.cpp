@@ -1,11 +1,17 @@
 //wgfmu_control.cpp
-//Author: Pierre-Antoine Mouny
-//Date: 25/05/2021
-//Universite De Sherbrooke (3IT)
+// Author: Pierre-Antoine Mouny
+// Date: 25/05/2021
+// Universite De Sherbrooke (3IT)
 // Description: Implements multilevel programming for memristors using WGFMU remotely.
 // Core functions of the script (read_resistance, write_resistance and extract_results) can 
 // be reused for other pulsed measurements on memristors.
-//#include <stdafx.h>
+
+// Modified by: Nicolas Gariépy
+// Date: 2022-09-19
+// Universite De Sherbrooke (3IT)
+// Decription: Adds functions to do PUND protocol measurements, intended for use on ferroelectric devices.
+// These functions are run by proxy of a python script used to generate configs and visualize the data.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
