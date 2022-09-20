@@ -45,17 +45,10 @@ int main(int argc, char *argv[]) {
             // Filename example : PUND_32.csv, One .csv by measurement, not a .xls by decade like Keithley
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) 
                                    + std::to_string(args.PUND_number) + ".csv";
-            int cycle_count;
-            switch (args.PUND_decade) {
-            case 0:
-                cycle_count = 0; // Pristine state, do not age
-                break;
-            case 1:
-                cycle_count = 8; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
-                break;
-            default:
-                cycle_count = pow(10, args.PUND_decade) - 1; // This will give 99,999,9999, etc.
-            }
+            
+            int cycle_count = pow(10, args.PUND_decade) - 1; // This will give 0, 9, 99,999,9999, etc.
+            if (args.PUND_decade == 1 && args.PUND_number == 0)
+                cycle_count--; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
 
             init_session(args.currentrange);
             aging_pulse(args.aging_shape, cycle_count);
