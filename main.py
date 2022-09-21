@@ -8,6 +8,7 @@ from importlib.resources import path
 from subprocess import call
 import json
 import math
+from unicodedata import numeric
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
@@ -74,16 +75,22 @@ def fake_data(data, decade):
     return data
 
 for decade in range(8):
-    for number in range(1,10):
+    for number in range(2, 11):
         df = fake_data(df, 0)
+        if decade < 2:
+            number = 0
+            df.to_csv(path_unix+"PUND_"+str(decade)+str(number)+".csv", sep=';', index=False)
+            break
         df.to_csv(path_unix+"PUND_"+str(decade)+str(number)+".csv", sep=';', index=False)
+
 exit()
 """
 
-
 ### Get and plot data
 def get_results(decade, number):
-    return pd.read_csv(path_unix+"PUND_"+str(decade)+str(number)+".csv", sep=';')
+    df = pd.read_csv(path_unix+"PUND_"+str(decade)+str(number)+".csv", sep=';')
+    df.to_excel(excelf, sheet_name="PUND_"+str(decade)+str(number))
+    return df 
 
 def plt_results(data, n):
     fig = plt.figure(n)
@@ -110,18 +117,16 @@ def update_results(axis, data):
 
 
 ### Do PUND00 (special case, one measurement, no aging, asks for current range adjust)¸
-# retval = call([exe_path, "1", str(PUND_decade), std(PUND_number), path_win + "\\" + configname])
-retval = 0
+retval = call([exe_path, "1", str(PUND_decade), str(PUND_number), path_win + "\\" + configname])
 if retval != 0:
     print("WGFMU.exe finished execution with error code:" + str(retval))
     print("Most likely an error with the python script, the exe will run \"correctly\" even if not connected to the machine")
     exit()
 
+excelf = pd.ExcelWriter(path_unix + "PUND_Data.xlsx")
 df = get_results(PUND_decade, PUND_number)
 ax = []
 ax.append(plt_results(df, PUND_decade))
-
-PUND_decade +=1
 
 # Ask for current range adjust
 while True:
@@ -140,25 +145,35 @@ while True:
     else:
         print("Invalid current range.")
 
+"""
 # Do all other PUNDS
+ # ATTENTION : Pas encore complètement implémenté. Il y aurait du cyclage supplémentaire pour la décade 1
 if pund_1_detailed:
-    # ATTENTION : Pas encore complètement implémenté. Il y aura du cyclage supplémentaire pour la décade 1
     PUND_decade = 0
-    for PUND_number in range(1,10):
+    for PUND_number in range(2,9):
         #call([exe_path, "1", str(PUND_decade), str(PUND_number), path_win + "\\" + configname])
         df = get_results(PUND_decade, PUND_number)
         update_results(ax[PUND_decade], df)
+"""
+# Decade 1 is a special case here:
+PUND_decade +=1; PUND_number=0
+call([exe_path, "1", str(PUND_decade), str(PUND_number), path_win + "\\" + configname])
+df = get_results(PUND_decade, PUND_number)    
+ax.append(plt_results(df, PUND_decade))
 
-for PUND_decade in range(1,8): #8 decades is approx max?
-    for PUND_number in range(10):
-        #call([exe_path, "1", str(PUND_decade), str(PUND_number), path_win + "\\" + configname])
-        df = get_results(PUND_decade, PUND_number)    
-        # Show graph
-        if PUND_number == 0:
-            ax.append(plt_results(df, PUND_decade))
-        else:    
-            update_results(ax[PUND_decade], df)
+for PUND_decade in range(2,8): #8 decades is approx max?
+        # PUND_number : 9 mesures, de 2 à 10 (11 est exclu du range). 10x10^(n-1) = 1x10^(n)
+        for PUND_number in range(2,11): # [2x10^(n-1), 3x10^(n-1), 4x10^(n-1), ... 9x10^(n-1), 10x10^(n-1)]
+            call([exe_path, "1", str(PUND_decade), str(PUND_number), path_win + "\\" + configname])
+            df = get_results(PUND_decade, PUND_number)    
+            # Show graph
+            if PUND_number == 2:
+                ax.append(plt_results(df, PUND_decade))
+            else:    
+                update_results(ax[PUND_decade], df)
 
-# Convert the separate .csv to a single .xls?
-# Could be added for retrocompatibility 
+            if PUND_decade == 1:
+                break # Decade 1 only has 1 PUND in it, correspoding to cycle number 10 
+
+excelf.save()
 

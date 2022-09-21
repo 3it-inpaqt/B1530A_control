@@ -46,16 +46,18 @@ int main(int argc, char *argv[]) {
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) 
                                    + std::to_string(args.PUND_number) + ".csv";
             
-            int cycle_count = pow(10, args.PUND_decade) - 1; // This will give 0, 9, 99,999,9999, etc.
-            if (args.PUND_decade == 1 && args.PUND_number == 0)
-                cycle_count--; // Do 1 less cycle, because the pristine state PUND also counts as the first aging cycle
-
+            int cycle_count = pow(10, args.PUND_decade - 1) - 1; // This will give  -0.9, 0, 9, 99,999,9999, etc.
+            if (args.PUND_decade == 0)
+                cycle_count = 0; // No aging on the pristine state
+            if (args.PUND_decade == 1)
+                cycle_count = 8; // The pristine state PUND also counts as the first aging cycle
+            
             init_session(args.currentrange);
             aging_pulse(args.aging_shape, cycle_count);
             PUND_pulse(args.PUND_shape, args.npoints);
             execute_and_save(filename);
 
-            if(args.PUND_number == 0) // For reference, the settings used are placed next to data 
+            if(args.PUND_number == 0 || args.PUND_number == 2) // For reference, the settings used are placed next to data 
                 WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
         }
     }
