@@ -590,7 +590,7 @@ void init_session(double currentrange) {
     WGFMU_initialize();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_OFFSET + (int)log10(currentrange));
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_OFFSET + (int)log10(currentrange)) + 1;
     WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
@@ -612,7 +612,7 @@ void execute_and_save(std::string filename) {
     WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
     double time, current, voltage;
     for (int i = 0; i < measuredSize; i++) {
-        WGFMU_getMeasureValue(bottomChannel, measuredSize - 1, &time, &current);
+        WGFMU_getMeasureValue(bottomChannel, i, &time, &current);
         WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
         ofs << time << ";" << voltage << ";" << current << std::endl;
     }
