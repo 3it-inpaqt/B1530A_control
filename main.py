@@ -15,10 +15,10 @@ import pandas as pd
 
 # Params
 # Data output location
-Material='Test'
+Material='W'
 Motif= ''
 sample= "Q294A"
-FTJ = "square100"
+FTJ = "tl141"
 Cycle_shape='Squared'
 Waiting = True                     # define if there's a pause included in the file before the PUND signal
 pund_1_detailed = False            # Do PUNDs 2 to 9 if true, else skip
@@ -37,23 +37,23 @@ path_unix_stamped = path_unix + "Data_" + timestamp + '/'
 path_win_stamped = path_win + "Data_" + timestamp + '\\'
 
 Decade_start = 0
-Decade_stop = 7
+Decade_stop = 6
 program_args = {
     "PUND_decade":0,
-    "currentrange":10000, # in µA
-    "npoints":800, # Current reading temporal resolution
-    "path": path_win + "Data_" + timestamp,
+    "currentrange":100, # in µA
+    "npoints":600, # Current reading temporal resolution
+    "path": path_win_stamped,
     # PUND
     "PUND_shape":{
         "Vpulse": 2.5,
         "trise": 50e-6, #rising time of the pulse in s
-        "twidth":50e-6, #width of the pund pulse in s
+        "twidth":0, #width of the pund pulse in s
         "tspace": 50e-6 #time between pulses in s
         #tpulse = 2*pentep + palierp + inter
     },
     # Cycling square wave
     "aging_shape":{
-        "Vpulse": 3,
+        "Vpulse": 2.5,
         "trise":500e-9, #rise time in s
         "twidth":50e-6, #pulse width in s
         "tspace":10e-6 #time between 2 pulses in s
@@ -118,10 +118,14 @@ def plt_new_axis(data, n):
     return ax2
 
 def plt_update_axis(axis, data):
-    if plt.fignum_exists(axis.get_figure().number):
+    fig = axis.get_figure()
+    if plt.fignum_exists(fig.number):
         axis.plot(data["Time"], data["Current"])
-        axis.get_figure().canvas.draw()
-        axis.get_figure().canvas.flush_events()
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+def plt_save(axis, decade):
+    axis[decade - Decade_start].get_figure().savefig(path_unix_stamped + "Chronograms of decade : " + str(decade), bbox_inches='tight')
 
 def callWGFMU(decade, number, configpath):
     retval = call([exe_path, "1", str(decade), str(number), configpath])
@@ -147,8 +151,8 @@ for PUND_decade in range(Decade_start, Decade_stop+1):
                 plt_results(ax, df, PUND_decade)
 
                 # Ask for current range adjust
-                while True:
-                    choice = input("Change current range : (default = keep same)")
+                while Decade_stop != 0:
+                    choice = input("Change current range (default = keep same): ")
                     if choice == "":
                         break # Keep same config, nothing to do
 
@@ -174,5 +178,8 @@ for PUND_decade in range(Decade_start, Decade_stop+1):
                 # Show graph
                 plt_results(ax, df, PUND_decade)
 
-excelf.save()
+        plt_save(ax, PUND_decade) # Save fig of each decade as .png
 
+
+excelf.save()
+input("Done press enter to exit")

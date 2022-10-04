@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
             
             int cycle_count = pow(10, args.PUND_decade - 1) - 1; // This will give  -0.9, 0, 9, 99,999,9999, etc.
             if (args.PUND_decade == 0)
-                cycle_count = 0; // No aging on the pristine state
+                cycle_count = 1; // Needs to be initialized, this technically would offset all PUNDs by 1, but it doesn't matter
             if (args.PUND_decade == 1)
                 cycle_count = 8; // The pristine state PUND also counts as the first aging cycle
             
@@ -570,7 +570,6 @@ void PUND_pulse(pulseshape shape, int npoints) {
     WGFMU_createMergedPattern("PU", "P", "P", WGFMU_AXIS_TIME);
     WGFMU_createMultipliedPattern("ND", "PU", 1, -1);
     WGFMU_createMergedPattern("PUND", "PU", "ND", WGFMU_AXIS_TIME);
-    WGFMU_addSequence(topChannel, "PUND", 1);
 
     // Create a measure pulse of the same lenght, where all voltages are 0
     WGFMU_createMultipliedPattern("meas", "PUND", 1, -1); // Can't multiplty voltage by 0
@@ -578,7 +577,10 @@ void PUND_pulse(pulseshape shape, int npoints) {
 
     double ttotal = 4 * (shape.tspace + 2 * shape.trise + shape.twidth);
     double tinterval = ttotal / npoints;
+    WGFMU_setMeasureEvent("PUND", "Vmeas", 0, npoints, tinterval, 0, WGFMU_MEASURE_EVENT_DATA_RAW); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
     WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints, tinterval, 0, WGFMU_MEASURE_EVENT_DATA_RAW); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
+
+    WGFMU_addSequence(topChannel, "PUND", 1);
     WGFMU_addSequence(bottomChannel, "meas", 1);
 }
 /// <summary>
@@ -588,10 +590,15 @@ void PUND_pulse(pulseshape shape, int npoints) {
 void init_session(double currentrange) {
     WGFMU_openSession("GPIB0::17::INSTR"); //18
     WGFMU_initialize();
+
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setMeasureVoltageRange(topChannel, WGFMU_MEASURE_VOLTAGE_RANGE_5V);
+    WGFMU_setMeasureMode(topChannel, WGFMU_MEASURE_MODE_VOLTAGE);
+
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_OFFSET + (int)log10(currentrange)) + 1;
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_OFFSET + (int)log10(currentrange) + 1);
     WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    
     WGFMU_connect(topChannel);
     WGFMU_connect(bottomChannel);
 }
@@ -606,14 +613,16 @@ void execute_and_save(std::string filename) {
 
     std::ofstream ofs;
     ofs.open(filename, std::ofstream::app);
+    ofs << std::setprecision(std::numeric_limits<double>::digits10 + 1);
     ofs << "Time;Voltage;Current" << std::endl;
     
-    int measuredSize, totalSize;
-    WGFMU_getMeasureValueSize(bottomChannel, &measuredSize, &totalSize);
+    int measuredSize_top, measuredSize_bot, totalSize_top, totalSize_bot;
+    WGFMU_getMeasureValueSize(topChannel, &measuredSize_top, &totalSize_top);
+    WGFMU_getMeasureValueSize(bottomChannel, &measuredSize_bot, &totalSize_bot);
     double time, current, voltage;
-    for (int i = 0; i < measuredSize; i++) {
+    for (int i = 0; i < measuredSize_bot; i++) {
+        WGFMU_getMeasureValue(topChannel, i, &time, &voltage);
         WGFMU_getMeasureValue(bottomChannel, i, &time, &current);
-        WGFMU_getInterpolatedForceValue(topChannel, time, &voltage);
         ofs << time << ";" << voltage << ";" << current << std::endl;
     }
     ofs.close();
