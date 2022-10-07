@@ -46,14 +46,17 @@ int main(int argc, char *argv[]) {
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) 
                                    + std::to_string(args.PUND_number) + ".csv";
             
-            int cycle_count = pow(10, args.PUND_decade - 1) - 1; // This will give  -0.9, 0, 9, 99,999,9999, etc.
-            if (args.PUND_decade == 0)
-                cycle_count = 1; // Needs to be initialized, this technically would offset all PUNDs by 1, but it doesn't matter
+            bool initialize = false;
+            int cycle_count = pow(10, args.PUND_decade - 1) - 1; // This will give  (0;-0.9), (1;0) (2;9), (3;99), (4;999) , etc.
+            if (args.PUND_decade == 0){
+                cycle_count = 0; // Needs to be initialized, this technically would offset all PUNDs by 1, but it doesn't matter
+                initialize = true;
+            }
             if (args.PUND_decade == 1)
                 cycle_count = 8; // The pristine state PUND also counts as the first aging cycle
             
             init_session(args.currentrange);
-            aging_pulse(args.aging_shape, cycle_count);
+            aging_pulse(args.aging_shape, cycle_count, initialize);
             PUND_pulse(args.PUND_shape, args.npoints);
             execute_and_save(filename);
 
@@ -537,22 +540,36 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 /// </summary>
 /// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
 /// <param name="count"> Number aging cycles to do. If count = 1, there is 1 positive AND 1 negative pulse. </param>
-void aging_pulse(pulseshape shape, double count) {
-    if (count == 0) return;
-
-    WGFMU_createPattern("pulsepos", 0);
-    WGFMU_addVector("pulsepos", shape.tspace, 0); // Delay is prepended
-    WGFMU_addVector("pulsepos", shape.trise, shape.Vpulse); // Rise to Vpulse
-    WGFMU_addVector("pulsepos", shape.twidth, shape.Vpulse); // Hold
-    WGFMU_addVector("pulsepos", shape.trise, 0); // Return to 0
-    WGFMU_createMultipliedPattern("pulseneg", "pulsepos", 1, -1);
-    WGFMU_createMergedPattern("pulse", "pulsepos", "pulseneg", WGFMU_AXIS_TIME);
-    WGFMU_addSequence(topChannel, "pulse", count); //1 pulse output
+void aging_pulse(pulseshape shape, double count, bool initialize) {
+    if (count == 0 && !initialize) return; // Don't cycle, don't initialise
     
-    // Create a measure pulse of the same lenght, where all voltages are 0
-    WGFMU_createMultipliedPattern("gnd", "pulse", 1, -1); // Can't multiplty voltage by 0
-    WGFMU_createMergedPattern("gnd", "gnd", "pulse", WGFMU_AXIS_VOLTAGE); // So add the opposite
-    WGFMU_addSequence(bottomChannel, "gnd", count);
+    if (initialize){
+        WGFMU_createPattern("pulseneg", 0);
+        WGFMU_addVector("pulseneg", shape.tspace, 0); // Delay is prepended
+        WGFMU_addVector("pulseneg", shape.trise, -1 * shape.Vpulse); // Rise to Vpulse
+        WGFMU_addVector("pulseneg", shape.twidth, -1 * shape.Vpulse); // Hold
+        WGFMU_addVector("pulseneg", shape.trise, 0); // Return to 0
+        WGFMU_addSequence(topChannel, "pulseneg", 1); //1 pulse output
+
+        WGFMU_createMultipliedPattern("gnd", "pulseneg", 1, -1); // Can't multiplty voltage by 0
+        WGFMU_createMergedPattern("gnd", "gnd", "pulseneg", WGFMU_AXIS_VOLTAGE); // So add the opposite
+        WGFMU_addSequence(bottomChannel, "gnd", 1);
+    }
+    else { 
+        WGFMU_createPattern("pulsepos", 0);
+        WGFMU_addVector("pulsepos", shape.tspace, 0); // Delay is prepended
+        WGFMU_addVector("pulsepos", shape.trise, shape.Vpulse); // Rise to Vpulse
+        WGFMU_addVector("pulsepos", shape.twidth, shape.Vpulse); // Hold
+        WGFMU_addVector("pulsepos", shape.trise, 0); // Return to 0
+        WGFMU_createMultipliedPattern("pulseneg", "pulsepos", 1, -1);
+        WGFMU_createMergedPattern("pulse", "pulsepos", "pulseneg", WGFMU_AXIS_TIME);
+        WGFMU_addSequence(topChannel, "pulse", count); //1 pulse output
+    
+        // Create a measure pulse of the same lenght, where all voltages are 0
+        WGFMU_createMultipliedPattern("gnd", "pulse", 1, -1); // Can't multiplty voltage by 0
+        WGFMU_createMergedPattern("gnd", "gnd", "pulse", WGFMU_AXIS_VOLTAGE); // So add the opposite
+        WGFMU_addSequence(bottomChannel, "gnd", count);
+    }
 }
 
 /// <summary>

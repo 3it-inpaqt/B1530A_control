@@ -62,7 +62,7 @@ const char* get_timestamp(int, const char*);
 
 // Ferro / Pund specific funcitons
 void parseargs(int argc, char* argv[], PUND_args* args);
-void aging_pulse(pulseshape shape, double count);
+void aging_pulse(pulseshape shape, double count, bool initialize);
 void PUND_pulse(pulseshape shape, int npoints);
 void init_session(double range);
 void execute_and_save(std::string filename);

@@ -12,13 +12,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+import shutil
 
 # Params
 # Data output location
-Material='W'
+Material='W_test'
 Motif= ''
 sample= "Q294A"
-FTJ = "tl141"
+FTJ = "ml71"
 Cycle_shape='Squared'
 Waiting = True                     # define if there's a pause included in the file before the PUND signal
 pund_1_detailed = False            # Do PUNDs 2 to 9 if true, else skip
@@ -41,20 +42,20 @@ Decade_stop = 6
 program_args = {
     "PUND_decade":0,
     "currentrange":100, # in µA
-    "npoints":600, # Current reading temporal resolution
+    "npoints":500, # Current reading temporal resolution
     "path": path_win_stamped,
     # PUND
     "PUND_shape":{
         "Vpulse": 2.5,
         "trise": 50e-6, #rising time of the pulse in s
         "twidth":0, #width of the pund pulse in s
-        "tspace": 50e-6 #time between pulses in s
+        "tspace": 10e-6 #time between pulses in s
         #tpulse = 2*pentep + palierp + inter
     },
     # Cycling square wave
     "aging_shape":{
         "Vpulse": 2.5,
-        "trise":500e-9, #rise time in s
+        "trise":1000e-9, #rise time in s
         "twidth":50e-6, #pulse width in s
         "tspace":10e-6 #time between 2 pulses in s
     }
@@ -72,7 +73,8 @@ fakedf = pd.DataFrame({
 })
 
 def fake_data(data, decade):
-    data["Current"] = np.abs(np.random.randn(100))*data["Voltage"]
+    data["Voltage"] = data["Voltage"] + np.random.randn(len(data["Voltage"]))/5
+    data["Current"] = (0.5 + np.abs(np.random.randn(len(data["Voltage"])))/3)*data["Voltage"]
     return data
 
 """
@@ -115,12 +117,13 @@ def plt_new_axis(data, n):
     fig.show()
     fig.canvas.draw()
     fig.canvas.flush_events()
-    return ax2
+    return fig
 
-def plt_update_axis(axis, data):
-    fig = axis.get_figure()
+def plt_update_axis(fig, data):
     if plt.fignum_exists(fig.number):
-        axis.plot(data["Time"], data["Current"])
+        ax1 = fig.axes[0]
+        fig.axes[0].plot(data["Time"], data["Voltage"], "silver")
+        fig.axes[1].plot(data["Time"], data["Current"])
         fig.canvas.draw()
         fig.canvas.flush_events()
 
@@ -140,7 +143,7 @@ def callWGFMU(decade, number, configpath):
     #return fake_data(fakedf, decade)
 
 ax = []
-excelf = pd.ExcelWriter(path_unix + "PUND_Data.xlsx")
+excelf = pd.ExcelWriter(path_unix_stamped + "PUND_Data.xlsx")
 
 for PUND_decade in range(Decade_start, Decade_stop+1):
         # PUND_number : 9 mesures, de 2 à 10 (11 est exclu du range). 10x10^(n-1) = 1x10^(n)
@@ -182,4 +185,6 @@ for PUND_decade in range(Decade_start, Decade_stop+1):
 
 
 excelf.save()
+shutil.copy2(path_unix_stamped + "PUND_Data.xlsx", path_unix)
+shutil.copy2(path_unix_stamped + configname, path_unix)
 input("Done press enter to exit")
