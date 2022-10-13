@@ -38,10 +38,11 @@
 /// <returns></returns>
 int main(int argc, char *argv[]) {
     if (argc==5) {
+        PUND_args args;
+        parseargs(argc, argv, &args);
         if (*argv[1] == '1') {
-            PUND_args args;
-            parseargs(argc, argv, &args);
-
+            // "Standard mode" aging done by decade
+            // 
             // Filename example : PUND_32.csv, One .csv by measurement, not a .xls by decade like Keithley
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) 
                                    + std::to_string(args.PUND_number) + ".csv";
@@ -62,6 +63,18 @@ int main(int argc, char *argv[]) {
 
             if(args.PUND_number == 0 || args.PUND_number == 2) // For reference, the settings used are placed next to data 
                 WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
+        }
+        if (*argv[1] == '2') {
+            // "Single PUND mode" Do one PUND, no aging at all
+            
+            // Same naming scheme as standard, but the decade and number can be arbitrary
+            std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade)
+                + std::to_string(args.PUND_number) + ".csv";
+            
+            init_session(args.currentrange);
+            PUND_pulse(args.PUND_shape, args.npoints);
+            execute_and_save(filename);
+            WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
         }
     }
     else{
@@ -415,10 +428,12 @@ void parseargs(int argc, char* argv[], PUND_args* args){
     json jargs = json::parse(f);
     args->PUND_decade = std::stoi(argv[2]);
     args->PUND_number = std::stoi(argv[3]);
-    args->aging_shape.Vpulse = jargs["aging_shape"]["Vpulse"];
-    args->aging_shape.trise = jargs["aging_shape"]["trise"];
-    args->aging_shape.twidth = jargs["aging_shape"]["twidth"];
-    args->aging_shape.tspace = jargs["aging_shape"]["tspace"];
+    if (jargs.contains("aging_shape")) {
+        args->aging_shape.Vpulse = jargs["aging_shape"]["Vpulse"];
+        args->aging_shape.trise = jargs["aging_shape"]["trise"];
+        args->aging_shape.twidth = jargs["aging_shape"]["twidth"];
+        args->aging_shape.tspace = jargs["aging_shape"]["tspace"];
+    }
     args->PUND_shape.Vpulse = jargs["PUND_shape"]["Vpulse"];
     args->PUND_shape.trise = jargs["PUND_shape"]["trise"];
     args->PUND_shape.twidth = jargs["PUND_shape"]["twidth"];
@@ -594,8 +609,8 @@ void PUND_pulse(pulseshape shape, int npoints) {
 
     double ttotal = 4 * (shape.tspace + 2 * shape.trise + shape.twidth);
     double tinterval = ttotal / npoints;
-    WGFMU_setMeasureEvent("PUND", "Vmeas", 0, npoints, tinterval, 0, WGFMU_MEASURE_EVENT_DATA_RAW); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
-    WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints, tinterval, 0, WGFMU_MEASURE_EVENT_DATA_RAW); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
+    WGFMU_setMeasureEvent("PUND", "Vmeas", 0, npoints, tinterval, tinterval, WGFMU_MEASURE_EVENT_DATA_AVERAGED); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
+    WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints, tinterval, tinterval, WGFMU_MEASURE_EVENT_DATA_AVERAGED); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
 
     WGFMU_addSequence(topChannel, "PUND", 1);
     WGFMU_addSequence(bottomChannel, "meas", 1);

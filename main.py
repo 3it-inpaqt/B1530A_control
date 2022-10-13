@@ -16,13 +16,10 @@ import shutil
 
 # Params
 # Data output location
-Material='W_test'
+Material='W'
 Motif= ''
 sample= "Q294A"
-FTJ = "ml71"
-Cycle_shape='Squared'
-Waiting = True                     # define if there's a pause included in the file before the PUND signal
-pund_1_detailed = False            # Do PUNDs 2 to 9 if true, else skip
+FTJ = "bl03"
 
 if Motif=='':
     path_unix = "/home/ngariepy/Documents/UdeS/T4/Keysight/"+str(Material)+'/'+str(sample)+'/'+str(FTJ)+'/'
@@ -37,12 +34,15 @@ timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
 path_unix_stamped = path_unix + "Data_" + timestamp + '/'
 path_win_stamped = path_win + "Data_" + timestamp + '\\'
 
-Decade_start = 0
-Decade_stop = 6
+# modes : "Standard", "Single"
+mode = "Single"
+Decade_start = 3 # For "Standard" measurements, also the filename in "Single" measurements
+Decade_stop = 3 # For "Standard" measurements
+singleNumber = 10 # For "Single" measurements
 program_args = {
     "PUND_decade":0,
     "currentrange":100, # in µA
-    "npoints":500, # Current reading temporal resolution
+    "npoints":800, # Current reading temporal resolution
     "path": path_win_stamped,
     # PUND
     "PUND_shape":{
@@ -55,7 +55,7 @@ program_args = {
     # Cycling square wave
     "aging_shape":{
         "Vpulse": 2.5,
-        "trise":1000e-9, #rise time in s
+        "trise":500e-9, #rise time in s
         "twidth":50e-6, #pulse width in s
         "tspace":10e-6 #time between 2 pulses in s
     }
@@ -72,6 +72,11 @@ fakedf = pd.DataFrame({
             'Voltage': [*range(25), *(np.multiply(range(25),-1)), *range(25), *(np.multiply(range(25),-1))],
 })
 
+ax = []
+excelf = pd.ExcelWriter(path_unix_stamped + "PUND_Data.xlsx")
+#----------------------------------------------------------------------------------------------------------------------------------
+
+# Functions
 def fake_data(data, decade):
     data["Voltage"] = data["Voltage"] + np.random.randn(len(data["Voltage"]))/5
     data["Current"] = (0.5 + np.abs(np.random.randn(len(data["Voltage"])))/3)*data["Voltage"]
@@ -130,61 +135,75 @@ def plt_update_axis(fig, data):
 def plt_save(axis, decade):
     axis[decade - Decade_start].get_figure().savefig(path_unix_stamped + "Chronograms of decade : " + str(decade), bbox_inches='tight')
 
-def callWGFMU(decade, number, configpath):
-    retval = call([exe_path, "1", str(decade), str(number), configpath])
+def plt_save_singles(axis, decade):
+    axis[decade - Decade_start].get_figure().savefig(path_unix_stamped + "Chronograms of singles at decade : " + str(decade), bbox_inches='tight')
+
+
+def callWGFMU(type, decade, number, configpath):
+    retval = call([exe_path, str(type), str(decade), str(number), configpath])
     if retval != 0:
         print("WGFMU.exe finished execution with error code:" + str(retval))
         print("Most likely an error with the python script, the exe will run \"correctly\" even if not connected to the machine")
         exit()
     # LOG HERE
     with open(path_unix + "Allmeasurements.log", 'a') as logfile:
-        logfile.write(timestamp + ';' + str(decade) + ';' + str(number) + ';' + configpath + '\n')
+        logfile.write(timestamp + ';' + str(type) + ';' + str(decade) + ';' + str(number) + ';' + configpath + '\n')
     return get_results(decade, number)
     #return fake_data(fakedf, decade)
 
-ax = []
-excelf = pd.ExcelWriter(path_unix_stamped + "PUND_Data.xlsx")
+#----------------------------------------------------
+if mode == "Standard":
+    for PUND_decade in range(Decade_start, Decade_stop+1):
+            # PUND_number : 9 mesures, de 2 à 10 (11 est exclu du range). 10x10^(n-1) = 1x10^(n)
+            for PUND_number in range(2,11): # [2x10^(n-1), 3x10^(n-1), 4x10^(n-1), ... 9x10^(n-1), 10x10^(n-1)]
+                if PUND_decade == 0:
+                    # Do PUND00 (special case, one measurement, no aging, asks for current range adjust)¸
+                    df = callWGFMU(1, PUND_decade, 0, path_win_stamped + configname)
+                    plt_results(ax, df, PUND_decade)
 
-for PUND_decade in range(Decade_start, Decade_stop+1):
-        # PUND_number : 9 mesures, de 2 à 10 (11 est exclu du range). 10x10^(n-1) = 1x10^(n)
-        for PUND_number in range(2,11): # [2x10^(n-1), 3x10^(n-1), 4x10^(n-1), ... 9x10^(n-1), 10x10^(n-1)]
-            if PUND_decade == 0:
-                # Do PUND00 (special case, one measurement, no aging, asks for current range adjust)¸
-                df = callWGFMU(PUND_decade, 0, path_win_stamped + configname)
-                plt_results(ax, df, PUND_decade)
+                    # Ask for current range adjust
+                    while Decade_stop != 0:
+                        choice = input("Change current range (default = keep same): ")
+                        if choice == "":
+                            break # Keep same config, nothing to do
 
-                # Ask for current range adjust
-                while Decade_stop != 0:
-                    choice = input("Change current range (default = keep same): ")
-                    if choice == "":
-                        break # Keep same config, nothing to do
+                        choice = float(choice)
+                        if(choice>=1 and math.log10(choice).is_integer() and math.log10(choice) < 5):
+                            program_args["currentrange"] = choice # new current range
+                            program_args["PUND_decade"] = PUND_decade # new current range
+                            configname = "config1.json"
+                            with open(path_unix_stamped + configname, "w", encoding="utf_8") as outfile:
+                                json.dump(program_args, outfile, indent=4, sort_keys=False)
+                            break # Create new config with new current range
+                        else:
+                            print("Invalid current range.")
+                    break # Decade 0 only has 1 PUND in it, correspoding to cycle number 1
 
-                    choice = float(choice)
-                    if(choice>=1 and math.log10(choice).is_integer() and math.log10(choice) < 5):
-                        program_args["currentrange"] = choice # new current range
-                        program_args["PUND_decade"] = PUND_decade # new current range
-                        configname = "config1.json"
-                        with open(path_unix_stamped + configname, "w", encoding="utf_8") as outfile:
-                            json.dump(program_args, outfile, indent=4, sort_keys=False)
-                        break # Create new config with new current range
-                    else:
-                        print("Invalid current range.")
-                break # Decade 0 only has 1 PUND in it, correspoding to cycle number 1
+                elif PUND_decade == 1:
+                    df = callWGFMU(1, PUND_decade, 0, path_win_stamped + configname)
+                    plt_results(ax, df, PUND_decade)
+                    break # Decade 1 only has 1 PUND in it, correspoding to cycle number 10 
+                
+                else:
+                    df = callWGFMU(1, PUND_decade, PUND_number, path_win_stamped + configname)
+                    # Show graph
+                    plt_results(ax, df, PUND_decade)
 
-            elif PUND_decade == 1:
-                df = callWGFMU(PUND_decade, 0, path_win_stamped + configname)
-                plt_results(ax, df, PUND_decade)
-                break # Decade 1 only has 1 PUND in it, correspoding to cycle number 10 
-            
-            else:
-                df = callWGFMU(PUND_decade, PUND_number, path_win_stamped + configname)
-                # Show graph
-                plt_results(ax, df, PUND_decade)
-
-        plt_save(ax, PUND_decade) # Save fig of each decade as .png
+            plt_save(ax, PUND_decade) # Save fig of each decade as .png
 
 
-excelf.save()
-shutil.copy2(path_unix_stamped + "PUND_Data.xlsx", path_unix)
-shutil.copy2(path_unix_stamped + configname, path_unix)
-input("Done press enter to exit")
+    excelf.save()
+    shutil.copy2(path_unix_stamped + "PUND_Data.xlsx", path_unix)
+    shutil.copy2(path_unix_stamped + configname, path_unix)
+    input("Done press enter to exit")
+
+elif mode == "Single":
+    for PUND_number in range(singleNumber):
+        df = callWGFMU(2, Decade_start, PUND_number, path_win_stamped + configname)
+        plt_results(ax, df, Decade_start)
+
+    plt_save_singles(ax, Decade_start) # Save fig of each decade as .png
+    excelf.save()
+    shutil.copy2(path_unix_stamped + "PUND_Data.xlsx", path_unix)
+    shutil.copy2(path_unix_stamped + configname, path_unix)
+    input("Done press enter to exit")
