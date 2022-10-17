@@ -6,12 +6,12 @@ import shutil
 
 #C:\Users\ngariepy\Documents\UdeS\T4\Keysight\W\Q294A\ml41
 
-samples = ["ml72", "ml82", "ml161", "ml171", "ml181", "bl01", "bl02", "bl03"]
+samples = ["bl02", "bl03"]
 base_path = "/home/ngariepy/Documents/UdeS/T4/Keysight/W/Q294A/"
 #path_stamped = path + "Data_2022-10-07_132849/"
 #excelf = pd.ExcelWriter(path_stamped + "PUND_Data.xlsx")
 
-stamp = re.compile("Data_")
+stamp = re.compile("Merged_comparison")
 pat = re.compile("PUND_\d{2,3}.csv")
 
 for sample in samples:
@@ -28,7 +28,7 @@ for sample in samples:
         df.to_excel(excelf, sheet_name="PUND_"+str(decade)+str(number))
     excelf.save()
     shutil.copy2(path + "PUND_Data.xlsx", base_path+sample)
-    shutil.copy2(path + "config0.json", base_path+sample)    
+    #shutil.copy2(path + "config0.json", base_path+sample)    
 
 
 

@@ -625,6 +625,7 @@ void init_session(double currentrange) {
 
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
     WGFMU_setMeasureVoltageRange(topChannel, WGFMU_MEASURE_VOLTAGE_RANGE_5V);
+    WGFMU_setForceVoltageRange(topChannel, WGFMU_FORCE_VOLTAGE_RANGE_AUTO);
     WGFMU_setMeasureMode(topChannel, WGFMU_MEASURE_MODE_VOLTAGE);
 
     WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);

@@ -19,7 +19,8 @@ import shutil
 Material='W'
 Motif= ''
 sample= "Q294A"
-FTJ = "bl03"
+FTJ = "mr104"
+print(FTJ)
 
 if Motif=='':
     path_unix = "/home/ngariepy/Documents/UdeS/T4/Keysight/"+str(Material)+'/'+str(sample)+'/'+str(FTJ)+'/'
@@ -36,12 +37,12 @@ path_win_stamped = path_win + "Data_" + timestamp + '\\'
 
 # modes : "Standard", "Single"
 mode = "Single"
-Decade_start = 3 # For "Standard" measurements, also the filename in "Single" measurements
-Decade_stop = 3 # For "Standard" measurements
+Decade_start = 4 # For "Standard" measurements, also the filename in "Single" measurements
+Decade_stop = 4 # For "Standard" measurements
 singleNumber = 10 # For "Single" measurements
 program_args = {
     "PUND_decade":0,
-    "currentrange":100, # in µA
+    "currentrange":1000, # in µA
     "npoints":800, # Current reading temporal resolution
     "path": path_win_stamped,
     # PUND
