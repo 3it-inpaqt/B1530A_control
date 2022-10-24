@@ -40,13 +40,15 @@ int main(int argc, char *argv[]) {
     if (argc==5) {
         PUND_args args;
         parseargs(argc, argv, &args);
+        
+        if (!checkargs(&args)) return 1; // Exit with error, to prevent creating the .csv
+
         if (*argv[1] == '1') {
             // "Standard mode" aging done by decade
-            // 
             // Filename example : PUND_32.csv, One .csv by measurement, not a .xls by decade like Keithley
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade) 
-                                   + std::to_string(args.PUND_number) + ".csv";
-            
+                                    + "_" + std::to_string(args.PUND_number) + ".csv";
+
             bool initialize = false;
             int cycle_count = pow(10, args.PUND_decade - 1) - 1; // This will give  (0;-0.9), (1;0) (2;9), (3;99), (4;999) , etc.
             if (args.PUND_decade == 0){
@@ -64,14 +66,19 @@ int main(int argc, char *argv[]) {
             if(args.PUND_number == 0 || args.PUND_number == 2) // For reference, the settings used are placed next to data 
                 WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
         }
-        if (*argv[1] == '2') {
-            // "Single PUND mode" Do one PUND, no aging at all
+        if (*argv[1] == '2' || *argv[1] == '3') {
+            // "Single PUND mode" Do one PUND, 
+            // Option 2 has no aging at all
+            // Option 3 has as init pulse before
             
             // Same naming scheme as standard, but the decade and number can be arbitrary
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade)
-                + std::to_string(args.PUND_number) + ".csv";
-            
+                                    + "_" + std::to_string(args.PUND_number) + ".csv";
+
             init_session(args.currentrange);
+            if (*argv[1] == '3') {
+                aging_pulse(args.aging_shape, 0, true);
+            }
             PUND_pulse(args.PUND_shape, args.npoints);
             execute_and_save(filename);
             WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
@@ -443,6 +450,28 @@ void parseargs(int argc, char* argv[], PUND_args* args){
     args->path = jargs["path"];
 }
 
+bool checkargs(PUND_args* args) {
+    if ((args->PUND_shape.trise < WGFMU_t_min_segment) ||
+        (args->PUND_shape.twidth < WGFMU_t_min_segment && args->PUND_shape.twidth != 0) ||
+        (args->PUND_shape.tspace < WGFMU_t_min_segment) ||
+
+        (args->aging_shape.trise < WGFMU_t_min_segment) ||
+        (args->aging_shape.twidth < WGFMU_t_min_segment && args->aging_shape.twidth != 0) ||
+        (args->aging_shape.tspace < WGFMU_t_min_segment))
+        {
+        return false;
+    }
+    return true;
+    /*if (args->PUND_shape.trise < WGFMU_t_min_segment) args->PUND_shape.trise = WGFMU_t_min_segment;
+    if (args->PUND_shape.twidth < WGFMU_t_min_segment && args->PUND_shape.twidth != 0) args->PUND_shape.twidth = WGFMU_t_min_segment;
+    if (args->PUND_shape.tspace < WGFMU_t_min_segment) args->PUND_shape.tspace = WGFMU_t_min_segment;
+
+    if (args->aging_shape.trise < WGFMU_t_min_segment) args->aging_shape.trise = WGFMU_t_min_segment;
+    if (args->aging_shape.twidth < WGFMU_t_min_segment && args->aging_shape.twidth != 0) args->aging_shape.twidth = WGFMU_t_min_segment;
+    if (args->aging_shape.tspace < WGFMU_t_min_segment) args->aging_shape.tspace = WGFMU_t_min_segment;
+    */
+}
+
 double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name) // Pulse voltage output
 {
     // OFFLINE
@@ -594,6 +623,8 @@ void aging_pulse(pulseshape shape, double count, bool initialize) {
 /// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
 /// <param name="npoints"> How many points of data to record. </param>
 void PUND_pulse(pulseshape shape, int npoints) {
+    
+
     WGFMU_createPattern("P", 0);
     WGFMU_addVector("P", shape.tspace, 0); // Delay is prepended
     WGFMU_addVector("P", shape.trise, shape.Vpulse); // Rise to Vpulse
@@ -607,10 +638,21 @@ void PUND_pulse(pulseshape shape, int npoints) {
     WGFMU_createMultipliedPattern("meas", "PUND", 1, -1); // Can't multiplty voltage by 0
     WGFMU_createMergedPattern("meas", "meas", "PUND", WGFMU_AXIS_VOLTAGE); // So add the opposite
 
+    // Determine sample time for desired npoints
     double ttotal = 4 * (shape.tspace + 2 * shape.trise + shape.twidth);
-    double tinterval = ttotal / npoints;
-    WGFMU_setMeasureEvent("PUND", "Vmeas", 0, npoints, tinterval, tinterval, WGFMU_MEASURE_EVENT_DATA_AVERAGED); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
-    WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints, tinterval, tinterval, WGFMU_MEASURE_EVENT_DATA_AVERAGED); // meas from 10 ns, 1 points, 0.01 ms interval, no averaging //10
+    double t_sample = ttotal / npoints;
+    
+    // Evaluate if it's possible to use this sample time...
+    if (t_sample < WGFMU_t_min_measure) t_sample = WGFMU_t_min_measure; // 5 ns is the minimal sampling time
+
+    // Snap sample time to grid, (WGFMU does this auto, but makes measurement event too long)
+    double t_sample_q = round(t_sample / WGFMU_t_min_measure) * WGFMU_t_min_measure;
+    int npoints_q = ttotal / t_sample_q - 1; // without the "-1", the event is still sometimes too long
+
+    double taveraging = (t_sample_q < WGFMU_t_min_averaging) ? WGFMU_t_min_averaging : t_sample_q; // 10 ns is the minimal averaging time
+
+    WGFMU_setMeasureEvent("PUND", "Vmeas", 0, npoints_q, t_sample_q, taveraging, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+    WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints_q, t_sample_q, taveraging, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
 
     WGFMU_addSequence(topChannel, "PUND", 1);
     WGFMU_addSequence(bottomChannel, "meas", 1);

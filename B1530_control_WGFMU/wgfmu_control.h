@@ -62,6 +62,7 @@ const char* get_timestamp(int, const char*);
 
 // Ferro / Pund specific funcitons
 void parseargs(int argc, char* argv[], PUND_args* args);
+bool checkargs(PUND_args* args);
 void aging_pulse(pulseshape shape, double count, bool initialize);
 void PUND_pulse(pulseshape shape, int npoints);
 void init_session(double range);
@@ -128,4 +129,7 @@ static const int nb_memristor = 1;
 static const double V_in = 0.001;
 static const double R_L = 1;
 
-
+//WGFMU ALWG specs
+static const double WGFMU_t_min_segment = 5e-09; // Minimum lenght of any vector in a waveform pattern
+static const double WGFMU_t_min_measure = 10e-09; // Minimum sample time in a measure event (datasheet says 5ns, but gets quantized to 10ns automatically)
+static const double WGFMU_t_min_averaging = 10e-09; // Minimum averaging time

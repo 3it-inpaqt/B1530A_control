@@ -6,12 +6,12 @@ import shutil
 
 #C:\Users\ngariepy\Documents\UdeS\T4\Keysight\W\Q294A\ml41
 
-samples = ["bl02", "bl03"]
-base_path = "/home/ngariepy/Documents/UdeS/T4/Keysight/W/Q294A/"
+samples = ["mr22",]
+base_path = "/home/ngariepy/Documents/UdeS/T4/Keysight/TiN/P474FB/"
 #path_stamped = path + "Data_2022-10-07_132849/"
 #excelf = pd.ExcelWriter(path_stamped + "PUND_Data.xlsx")
 
-stamp = re.compile("Merged_comparison")
+stamp = re.compile("Data")
 pat = re.compile("PUND_\d{2,3}.csv")
 
 for sample in samples:
