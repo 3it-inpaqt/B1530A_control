@@ -28,7 +28,7 @@ typedef struct PUND_args {
 	int PUND_number;
 	pulseshape aging_shape;
 	pulseshape PUND_shape;
-	double npoints;
+	int npoints;
 	double currentrange;
 	std::string path;
 };
@@ -63,9 +63,9 @@ const char* get_timestamp(int, const char*);
 // Ferro / Pund specific funcitons
 void parseargs(int argc, char* argv[], PUND_args* args);
 bool checkargs(PUND_args* args);
-void aging_pulse(pulseshape shape, double count, bool initialize);
-void PUND_pulse(pulseshape shape, int npoints);
-void init_session(double range);
+void aging_pulse(pulseshape shape, std::string name, double count, bool initialize);
+void PUND_pulse(pulseshape shape, int npoints, bool half);
+void init_session(double range, int mode);
 void execute_and_save(std::string filename);
 
 
@@ -133,3 +133,7 @@ static const double R_L = 1;
 static const double WGFMU_t_min_segment = 5e-09; // Minimum lenght of any vector in a waveform pattern
 static const double WGFMU_t_min_measure = 10e-09; // Minimum sample time in a measure event (datasheet says 5ns, but gets quantized to 10ns automatically)
 static const double WGFMU_t_min_averaging = 10e-09; // Minimum averaging time
+
+//NLS parameters
+const struct pulseshape NLS_cycle= { -3, 50e-09, 50e-6, 50e-6 };
+const struct pulseshape NLS_halfPUND = { 3, 50e-6, 0, 50e-6 };

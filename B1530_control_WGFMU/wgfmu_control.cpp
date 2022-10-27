@@ -36,6 +36,7 @@
 /// <param name="argv2"> PUND_number </param>
 /// <param name="argv3"> .json settings path </param>
 /// <returns></returns>
+
 int main(int argc, char *argv[]) {
     if (argc==5) {
         PUND_args args;
@@ -52,15 +53,15 @@ int main(int argc, char *argv[]) {
             bool initialize = false;
             int cycle_count = pow(10, args.PUND_decade - 1) - 1; // This will give  (0;-0.9), (1;0) (2;9), (3;99), (4;999) , etc.
             if (args.PUND_decade == 0){
-                cycle_count = 0; // Needs to be initialized, this technically would offset all PUNDs by 1, but it doesn't matter
-                initialize = true;
+                cycle_count = 1;
+                initialize = true; // With initialize = 1, the aging cycle will only be the negative half
             }
             if (args.PUND_decade == 1)
                 cycle_count = 8; // The pristine state PUND also counts as the first aging cycle
             
-            init_session(args.currentrange);
-            aging_pulse(args.aging_shape, cycle_count, initialize);
-            PUND_pulse(args.PUND_shape, args.npoints);
+            init_session(args.currentrange, WGFMU_OPERATION_MODE_FASTIV);
+            aging_pulse(args.aging_shape, "aging", cycle_count, initialize);
+            PUND_pulse(args.PUND_shape, args.npoints, false);
             execute_and_save(filename);
 
             if(args.PUND_number == 0 || args.PUND_number == 2) // For reference, the settings used are placed next to data 
@@ -75,14 +76,35 @@ int main(int argc, char *argv[]) {
             std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade)
                                     + "_" + std::to_string(args.PUND_number) + ".csv";
 
-            init_session(args.currentrange);
+            init_session(args.currentrange, WGFMU_OPERATION_MODE_FASTIV);
             if (*argv[1] == '3') {
-                aging_pulse(args.aging_shape, 0, true);
+                aging_pulse(args.aging_shape, "aging", 0, true);
             }
-            PUND_pulse(args.PUND_shape, args.npoints);
+            PUND_pulse(args.PUND_shape, args.npoints, false);
             execute_and_save(filename);
             WGFMU_exportAscii((filename + "WGFMUsettings.csv").c_str());
         }
+        if (*argv[1] == '4') {
+            // The decade actually represents switching time, and number is the voltage
+            std::string filename = args.path + "\\PUND_" + std::to_string(args.PUND_decade)
+                + "_" + std::to_string(args.PUND_number) + ".csv";
+            
+            init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
+            aging_pulse(NLS_cycle, "NLS_cycle", 2, false); // Standard pulse, using const params
+            aging_pulse(args.aging_shape, "NLS_params", 1, true); // "The NLS", using params from args
+            WGFMU_execute();
+
+            WGFMU_exportAscii((filename + "WGFMUsettingsbefore.csv").c_str());
+
+            WGFMU_clear(); // hopefully this doesn't reset everything
+            WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+           
+            //init_session(args.currentrange, WGFMU_OPERATION_MODE_FASTIV);
+            PUND_pulse(NLS_halfPUND, args.npoints, true); // Do half a PUND only. inverted w/ respect to last aging pulse
+            WGFMU_exportAscii((filename + "WGFMUsettingsafter.csv").c_str());
+            execute_and_save(filename);
+        }
+        //WGFMU_closeSession();
     }
     else{
         //TO DO ==> AUTOMATIC ACQUISITION OF HRS AND LRS VALUES
@@ -472,6 +494,7 @@ bool checkargs(PUND_args* args) {
     */
 }
 
+
 double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel, double pulse_amp, double pulse_width, const char* file_name) // Pulse voltage output
 {
     // OFFLINE
@@ -583,37 +606,37 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 /// Each wave does a positive and negative cycle per count
 /// </summary>
 /// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
-/// <param name="count"> Number aging cycles to do. If count = 1, there is 1 positive AND 1 negative pulse. </param>
-void aging_pulse(pulseshape shape, double count, bool initialize) {
+/// <param name="count"> Number aging cycles to do. If count = 1, there is 1 positive AND 1 negative pulse. </param> 
+void aging_pulse(pulseshape shape, std::string name, double count, bool initialize) {
     if (count == 0 && !initialize) return; // Don't cycle, don't initialise
-    
-    if (initialize){
-        WGFMU_createPattern("pulseneg", 0);
-        WGFMU_addVector("pulseneg", shape.tspace, 0); // Delay is prepended
-        WGFMU_addVector("pulseneg", shape.trise, -1 * shape.Vpulse); // Rise to Vpulse
-        WGFMU_addVector("pulseneg", shape.twidth, -1 * shape.Vpulse); // Hold
-        WGFMU_addVector("pulseneg", shape.trise, 0); // Return to 0
-        WGFMU_addSequence(topChannel, "pulseneg", 1); //1 pulse output
+    int mult = (initialize) ? -1 : 1; //If you're only initializing, only output negative half cycle
 
-        WGFMU_createMultipliedPattern("gnd", "pulseneg", 1, -1); // Can't multiplty voltage by 0
-        WGFMU_createMergedPattern("gnd", "gnd", "pulseneg", WGFMU_AXIS_VOLTAGE); // So add the opposite
-        WGFMU_addSequence(bottomChannel, "gnd", 1);
+    std::string gnd = name + "gnd";
+    std::string base = name + "pos";
+    std::string neg = name + "neg";
+
+    // Create a "base" pattern, matching the pulseshape
+    // The create a negative of it.
+    WGFMU_createPattern(base.c_str(), 0);
+    WGFMU_addVector(base.c_str(), shape.tspace, 0); // Delay is prepended
+    WGFMU_addVector(base.c_str(), shape.trise, mult * shape.Vpulse); // Rise to Vpulse
+    if (shape.twidth != 0) WGFMU_addVector(base.c_str(), shape.twidth, mult * shape.Vpulse); // Hold
+    WGFMU_addVector(base.c_str(), shape.trise, 0); // Return to 0
+    if (initialize) {
+        WGFMU_createMultipliedPattern(name.c_str(), base.c_str(), 1, 1); // literally just a copy, so that "name" exists
     }
-    else { 
-        WGFMU_createPattern("pulsepos", 0);
-        WGFMU_addVector("pulsepos", shape.tspace, 0); // Delay is prepended
-        WGFMU_addVector("pulsepos", shape.trise, shape.Vpulse); // Rise to Vpulse
-        WGFMU_addVector("pulsepos", shape.twidth, shape.Vpulse); // Hold
-        WGFMU_addVector("pulsepos", shape.trise, 0); // Return to 0
-        WGFMU_createMultipliedPattern("pulseneg", "pulsepos", 1, -1);
-        WGFMU_createMergedPattern("pulse", "pulsepos", "pulseneg", WGFMU_AXIS_TIME);
-        WGFMU_addSequence(topChannel, "pulse", count); //1 pulse output
+    else {
+        WGFMU_createMultipliedPattern(neg.c_str(), base.c_str(), 1, -1); // Create opposite
+        WGFMU_createMergedPattern(name.c_str(), base.c_str(), neg.c_str(), WGFMU_AXIS_TIME); // Put opposites end to end
+    }
+        
+    // Create gnd for botchannel, same length, but all voltages are 0
+    WGFMU_createMultipliedPattern(gnd.c_str(), name.c_str(), 1, -1); // Can't multiplty voltage by 0, so add the opposite
+    WGFMU_createMergedPattern(gnd.c_str(), gnd.c_str(), name.c_str(), WGFMU_AXIS_VOLTAGE); 
     
-        // Create a measure pulse of the same lenght, where all voltages are 0
-        WGFMU_createMultipliedPattern("gnd", "pulse", 1, -1); // Can't multiplty voltage by 0
-        WGFMU_createMergedPattern("gnd", "gnd", "pulse", WGFMU_AXIS_VOLTAGE); // So add the opposite
-        WGFMU_addSequence(bottomChannel, "gnd", count);
-    }
+    WGFMU_addSequence(topChannel, name.c_str(), count);
+    WGFMU_addSequence(bottomChannel, gnd.c_str(), count);
+
 }
 
 /// <summary>
@@ -622,8 +645,10 @@ void aging_pulse(pulseshape shape, double count, bool initialize) {
 /// </summary>
 /// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
 /// <param name="npoints"> How many points of data to record. </param>
-void PUND_pulse(pulseshape shape, int npoints) {
-    
+/// <param name="half"> If true, only the positive half of the pund is added. </param>
+void PUND_pulse(pulseshape shape, int npoints, bool half) {
+    std::string shapename = "PUND";
+    if (half) shapename = "PU";
 
     WGFMU_createPattern("P", 0);
     WGFMU_addVector("P", shape.tspace, 0); // Delay is prepended
@@ -633,13 +658,14 @@ void PUND_pulse(pulseshape shape, int npoints) {
     WGFMU_createMergedPattern("PU", "P", "P", WGFMU_AXIS_TIME);
     WGFMU_createMultipliedPattern("ND", "PU", 1, -1);
     WGFMU_createMergedPattern("PUND", "PU", "ND", WGFMU_AXIS_TIME);
-
+    
     // Create a measure pulse of the same lenght, where all voltages are 0
-    WGFMU_createMultipliedPattern("meas", "PUND", 1, -1); // Can't multiplty voltage by 0
-    WGFMU_createMergedPattern("meas", "meas", "PUND", WGFMU_AXIS_VOLTAGE); // So add the opposite
+    WGFMU_createMultipliedPattern("meas", shapename.c_str(), 1, -1); // Can't multiplty voltage by 0
+    WGFMU_createMergedPattern("meas", "meas", shapename.c_str(), WGFMU_AXIS_VOLTAGE); // So add the opposite
 
     // Determine sample time for desired npoints
-    double ttotal = 4 * (shape.tspace + 2 * shape.trise + shape.twidth);
+    double ttotal = 2 * (shape.tspace + 2 * shape.trise + shape.twidth);
+    if (!half) ttotal *= 2;
     double t_sample = ttotal / npoints;
     
     // Evaluate if it's possible to use this sample time...
@@ -651,21 +677,22 @@ void PUND_pulse(pulseshape shape, int npoints) {
 
     double taveraging = (t_sample_q < WGFMU_t_min_averaging) ? WGFMU_t_min_averaging : t_sample_q; // 10 ns is the minimal averaging time
 
-    WGFMU_setMeasureEvent("PUND", "Vmeas", 0, npoints_q, t_sample_q, taveraging, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+    WGFMU_setMeasureEvent(shapename.c_str(), "Vmeas", 0, npoints_q, t_sample_q, taveraging, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
     WGFMU_setMeasureEvent("meas", "Imeas", 0, npoints_q, t_sample_q, taveraging, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
 
-    WGFMU_addSequence(topChannel, "PUND", 1);
+    WGFMU_addSequence(topChannel, shapename.c_str(), 1);
     WGFMU_addSequence(bottomChannel, "meas", 1);
 }
+
 /// <summary>
 /// Inits the WGFMU with a specific current measure range.
 /// </summary>
 /// <param name="currentrange"> Current measure range, in µA. (1, 10, 100, 1000 or 10 000). </param>
-void init_session(double currentrange) {
+void init_session(double currentrange, int mode) {
     WGFMU_openSession("GPIB0::17::INSTR"); //18
     WGFMU_initialize();
 
-    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(topChannel, mode);
     WGFMU_setMeasureVoltageRange(topChannel, WGFMU_MEASURE_VOLTAGE_RANGE_5V);
     WGFMU_setForceVoltageRange(topChannel, WGFMU_FORCE_VOLTAGE_RANGE_AUTO);
     WGFMU_setMeasureMode(topChannel, WGFMU_MEASURE_MODE_VOLTAGE);
