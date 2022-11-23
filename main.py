@@ -1,10 +1,11 @@
 """
 2022-09-19
 Nicolas Gariépy
-Runs a PUND measurement, using WGFMU.exe on the Keysight B1500A with a B1530.`
+Runs a PUND measurement, using WGFMU.exe on the Keysight B1500A with a B1530.
 Define pulse params directly in the "program_args" dict.
 """
 from datetime import datetime
+from enum import Enum, auto
 from subprocess import call
 import json
 import math
@@ -15,46 +16,60 @@ import pandas as pd
 import shutil
 import time 
 
+
 # Params
 # Data output location
-Material= 'W'
+Material= 'Tin'
 Motif= ''
-sample= "Q294G"
-FTJ = "br73"
+sample= "Q277CC"
+FTJ = "tl172"
 print(FTJ)
 
-# modes : "Standard", "Single", "NLS"
-mode = "NLS"
-Decade_start = 0 # For "Standard" measurements, also the filename in "Single" measurements
-Decade_stop = 0 # For "Standard" measurements
-singleNumber = 1 # For "Single" measurements
-program_args = {
-    "PUND_decade":0,
-    "currentrange":1000, # in µA
-    "npoints":800,
+class Mode(Enum): # Enum values correspond to WGFMU.exe args
+    Standard = 1
+    Single = 3
+    NLS = 4
+    measureOnOff = 5
+    LTD_LTP_voltage = 6
+    LTD_LTP_pulsewidth = 7
+mode = Mode.LTD_LTP_voltage
+
+# Mixed use...
+Decade_start = 0 # Start endurance type measurements, also the filename in "Single" measurements
+Decade_stop = 4 # Endpoint of "endurance type" measurements, nb of times to do LTP_LTD.
+singleNumber = 1  # For "Single" measurements
+PROG_args = {
+    "PUND_decade":Decade_stop,
+    "currentrange":10, # in µA, min = 1, max = 10000
+    "npoints":80, # Affects PUND, LTP/LTD, but not On/Off 
     "PUND_shape":{ # PUND
-        "Vpulse": 1,
+        "Vpulse": 0.2,
         "trise": 50e-6, #rise time in s
-        "twidth":0, #width of the pund pulse in s
-        "tspace": 10e-6 #time between pulses in s
-    },
+        "twidth": 0, #width of the pund pulse in s
+        "tspace": 100e-6 #time between pulses in s
+    },  
     "aging_shape":{ # Cycling square wave
-        "Vpulse": 1,
-        "trise":500e-9, #rise time  in s
-        "twidth":5e-6, #pulse width in s
+        "Vpulse": 0.2,
+        "trise": 500e-9, #rise time  in s
+        "twidth":50e-6, #pulse width in s
         "tspace":10e-6 #time between pulses in s
-    }
+    },
+    "Vwritepos":1.2, # For var voltage : max vwrite. For var pulse : value used (assymmetric +/-)
+    "Vwriteneg":-1.2, # For var voltage : max vwrite. For var pulse : value used (assymmetric +/-)
+    "Vread":0.2, # Read pulse voltage
+    "twrite":50e-6 # For var voltage : value used. For var pulse : max tpulse (symmetric +/-)
 }
 
-#NLS
-NLS_t_start = 30e-9
+# NLS only
+NLS_t_start = 50e-9
 NLS_t_stop = 30e-3
 NLS_voltages = [1, 1.2, 1.5, 1.7, 2, 2.2, 2.5, 2.7, 3]#np.linspace(1.5, 3, 7) #1.5 3 7
 NLS_pulse_widths = np.logspace(np.log10(NLS_t_start), np.log10(NLS_t_stop), 25)
+
 #----------------------------------------------------------------------------------------------------------------------------------
 # Classes
 class pathFerro:
-    def __init__(self, Material, Motif, sample, FTJ):
+    def __init__(self, Material, Motif, sample, FTJ, mode):
         self.FTJ = FTJ
         if Motif=='':
             self.base_path = "C:\\Users\\ngariepy\\Documents\\UdeS\\T4\\Keysight\\"+str(Material)+'\\'+str(sample)+'\\'+str(FTJ) + '\\'
@@ -64,7 +79,7 @@ class pathFerro:
         self.configname = "config0.json"
         self.exe_path = "./Release/WGFMU.exe"
         self.timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        self.path_stamped = self.base_path + "Data_" + self.timestamp + '\\'
+        self.path_stamped = self.base_path + str(mode.name) + '_' + self.timestamp + '\\'
         self.configpath = self.path_stamped + self.configname
         self.excelpath = self.path_stamped + "PUND_Data.xlsx"
 
@@ -96,19 +111,18 @@ def plt_results(ax, data, n):
     # Missing Decade_start
     if len(ax) <= n - Decade_start:
         ax.append(plt_new_axis(data,n))
-    else:
-        plt_update_axis(ax[n - Decade_start], data)
-
+    plt_update_axis(ax[n - Decade_start], data)
+    
 def plt_new_axis(data, n):
     fig = plt.figure(n)
     fig.suptitle("Decade "+str(n))
     ax1 = fig.add_subplot(111)
-    ax1.plot(data["Time"], data["Voltage"], "silver")
+    ax1.grid(True, axis='x')
     ax1.set_xlabel(str(data.columns[0]))
     ax1.set_ylabel(str(data.columns[1]))
 
     ax2 = ax1.twinx()
-    ax2.plot(data["Time"], data["Current"])
+    ax2.grid(True, axis='both')
     ax2.set_ylabel(str(data.columns[2]))
     plt.tight_layout()
     fig.show()
@@ -118,10 +132,29 @@ def plt_new_axis(data, n):
 
 def plt_update_axis(fig, data):
     if plt.fignum_exists(fig.number):
-        fig.axes[0].plot(data["Time"], data["Voltage"], "silver")
-        fig.axes[1].plot(data["Time"], data["Current"])
+        #current = signal.convolve(data["Current"], fir)
+        fig.axes[0].plot(data["Time"][1:], data["Voltage"][1:], "silver")
+        fig.axes[1].plot(data["Time"][1:], data["Current"][1:])
+        #fig.axes[1].plot(data["Time"][1:], current[lenfilter2+1:-1*lenfilter2])
         fig.canvas.draw()
         fig.canvas.flush_events()
+
+def plt_resistances(data, paths, scale='log'):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    tst = data.loc[data['Vwrite'] >= 0]
+    ax.plot(data.loc[data['Vwrite'] >= 0].Resistance, 'o-', color='red')
+    ax.plot(data.loc[data['Vwrite'] < 0].Resistance, 'o-', color='green')
+    ax.set_xscale(scale)
+    fig.suptitle("Evolution of Resistance and ON/OFF")
+    ax.set_xlabel("Cycle")
+    ax.set_ylabel("Resistance (Ohms)")
+    ax.legend(["Positive", "Negative"])
+
+    plt.tight_layout()
+    fig.show()
+    fig.canvas.flush_events()
+    plt.savefig(paths.path_stamped + "Evolution of resistance.png", bbox_inches='tight')
 
 def plt_save(axis, decade, paths):
     # Warning "Decade_start" is accessed through the global scope
@@ -134,8 +167,7 @@ def plt_save_singles(axis, decade, paths):
 
 def callWGFMU(type, decade, number, paths, excelf):
     start_t = time.time()
-    # Type 1 = Standard, Type 2 = Singles
-    retval = call([paths.exe_path, str(type), str(decade), str(number), paths.configpath])
+    retval = call([paths.exe_path, str(type.value), str(decade), str(number), paths.configpath])
     end_t = time.time()
     print("Execution time (s) : " + str(end_t - start_t))
     if retval == 1:
@@ -153,20 +185,25 @@ def callWGFMU(type, decade, number, paths, excelf):
 
 #----------------------------------------------------
 def main():
-    paths = pathFerro(Material, Motif, sample, FTJ)
-    program_args["path"] = paths.path_stamped
+    paths = pathFerro(Material, Motif, sample, FTJ, mode)
+    PROG_args["path"] = paths.path_stamped
     
     # Write params to .json file, so it can be passed to the cpp .exe
     os.makedirs(paths.path_stamped, exist_ok=True) 
-    with open(paths.configpath, "w", encoding="utf_8") as outfile:
-        json.dump(program_args, outfile, indent=4, sort_keys=False)
+    dumpargs(PROG_args,paths)
 
-    if mode == "Standard":
-        standard_Measure(Decade_start, Decade_stop, paths, program_args)
-    elif mode == "Single":
+    if mode == Mode.Standard:
+        standard_Measure(Decade_start, Decade_stop, paths, PROG_args)
+    elif mode == Mode.Single:
         single_Measure(singleNumber, Decade_start, paths)
-    elif mode == "NLS":
+    elif mode == Mode.NLS:
         NLS(NLS_pulse_widths, NLS_voltages, paths)
+    elif mode == Mode.measureOnOff:
+        measureOnOff(paths)
+    elif (mode == Mode.LTD_LTP_voltage) or (mode == Mode.LTD_LTP_pulsewidth):
+        LTD_LTP(paths)
+    else :
+        print("Invalid test name.")
 
 def standard_Measure(Decade_start, Decade_stop, paths, program_args):
     ax = []
@@ -180,7 +217,7 @@ def standard_Measure(Decade_start, Decade_stop, paths, program_args):
 
             if PUND_decade == 0:
                 # Do PUND00 (special case, one measurement, no aging, asks for current range adjust)¸
-                df = callWGFMU(1, PUND_decade, 0, paths, excelf)
+                df = callWGFMU(mode, PUND_decade, 0, paths, excelf)
                 plt_results(ax, df, PUND_decade)
 
                 # Ask for current range adjust
@@ -202,11 +239,11 @@ def standard_Measure(Decade_start, Decade_stop, paths, program_args):
                 break # Decade 0 only has 1 PUND in it, correspoding to cycle number 1
 
             if PUND_decade == 1:
-                df = callWGFMU(1, PUND_decade, 0, paths, excelf)
+                df = callWGFMU(mode, PUND_decade, 0, paths, excelf)
                 plt_results(ax, df, PUND_decade)
                 break # Decade 1 only has 1 PUND in it, correspoding to cycle number 10
 
-            df = callWGFMU(1, PUND_decade, PUND_number, paths, excelf)
+            df = callWGFMU(mode, PUND_decade, PUND_number, paths, excelf)
             plt_results(ax, df, PUND_decade)
             """
             if PUND_decade > 6:
@@ -232,46 +269,40 @@ def single_Measure(singleNumber, Decade, paths):
     excelf = pd.ExcelWriter(paths.excelpath)
 
     for PUND_number in range(singleNumber):
-        df = callWGFMU(2, Decade, PUND_number, paths, excelf)
+        #df = callWGFMU(2, Decade, PUND_number, paths, excelf)
+        df = callWGFMU(mode, Decade, PUND_number, paths, excelf)
         plt_results(ax, df, Decade)
 
     plt_save_singles(ax, Decade, paths) # Save fig of each decade as .png
     excelf.close()
     shutil.copy2(paths.excelpath, paths.base_path)
     shutil.copy2(paths.configpath, paths.base_path)
-    if mode == "Single": # Only pause when the function is called directly by the user
+    if mode == Mode.Single: # Only pause when the function is called directly by the user
         input("Done press enter to exit")
 
 def NLS(pulse_widths, voltages, paths):
     ax = []
+    #ax2 = []
     excelf = pd.ExcelWriter(paths.excelpath)
     NLS_dict = {"pulse_widths":list(pulse_widths), "voltages":list(voltages)}
     with open(paths.path_stamped + "NLS_indexes.json", "w", encoding="utf_8") as indexes:
         json.dump(NLS_dict, indexes, indent=4, sort_keys=False)
 
-    """
-    # Create a log file with the switching times and pulse voltages used
-    with open(paths.path_stamped + "NLS_indexes.csv", "w", encoding="utf_8") as indexes:
-        indexes.write("Type;Index;Val")
-        for i, time in enumerate(times):
-            indexes.write("time" + ";" + str(i) + ";" + str(time) + '\n')
-        for j, voltage in enumerate(voltages):
-            indexes.write("voltage" + ";" + str(j) + ";" + str(voltage) + '\n')
-    """
-        
+    PROG_args["aging_shape"]["twidth"] = 50e-9 # 50e-9 = standard, 30e-9 = Minimum possible en mode PG
     for i, voltage in enumerate(voltages):
-        program_args["aging_shape"]["Vpulse"] = voltage
+        PROG_args["aging_shape"]["Vpulse"] = voltage
         for j, pulse_width in enumerate(pulse_widths):
-            program_args["aging_shape"]["twidth"] = pulse_width
-            with open(paths.configpath, "w", encoding="utf_8") as outfile:
-                # "config0.json" gets overwritten, but the WGFMU exe will also output a unique
-                # config on each test, where the relevant modifications can be tracked
-                json.dump(program_args, outfile, indent=4, sort_keys=False)
-            df = callWGFMU(4, j, i, paths, excelf)            
+            PROG_args["aging_shape"]["twidth"] = pulse_width
+            dumpargs(PROG_args, paths)
+            df = callWGFMU(mode, j, i, paths, excelf)
+            #df2 = get_results(j + 50, i, paths, excelf)
             plt_results(ax, df, i)
+            #ax.getaxes[1].set_ylim(bottom = -500e-09, top = 500e-09)
+    
+            #plt_results(ax2, df2, j+50)
             time.sleep(1) # Actual pause of 1 second, to make 100% sure the sample "settles"
         plt.savefig(paths.path_stamped + "Chronograms_at_" +  str(voltage) + "_V" + ".png")
-        plt.close()
+        #plt.close()
 
     excelf.close()
     shutil.copy2(paths.excelpath, paths.base_path)
@@ -279,4 +310,27 @@ def NLS(pulse_widths, voltages, paths):
     shutil.copy2(paths.path_stamped + "NLS_indexes.json", paths.base_path)
     input("")
 
+def measureOnOff(paths):
+    retval = call([paths.exe_path, str(5), str(Decade_start), str(0), paths.configpath])
+    shutil.copy2(paths.path_stamped + "Resistances.csv", paths.base_path)
+    
+    df = pd.read_csv(paths.path_stamped + "Resistances.csv", sep=';', index_col='CycleID')
+    plt_resistances(df, paths)
+
+    input("Done press enter to exit")
+
+def LTD_LTP(paths): # works for both var voltage and var pulsewidth
+    start_t = time.time()
+    retval = call([paths.exe_path, str(mode.value), str(0), str(0), paths.configpath])
+    end_t = time.time()
+    print("Execution time (s) : " + str(end_t - start_t))
+    result_filename = paths.path_stamped + "LTD_LTP" + ".csv"
+    shutil.copy2(result_filename, paths.base_path)
+    df = pd.read_csv(result_filename, sep=';', index_col="CycleID")
+    plt_resistances(df, paths,scale='linear')
+    input("Done press enter to exit")
+    
+def dumpargs(args,paths):
+    with open(paths.configpath, "w", encoding="utf8") as outfile:
+        json.dump(args, outfile, indent=4, sort_keys=False)
 main()

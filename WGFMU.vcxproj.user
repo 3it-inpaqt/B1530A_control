@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LocalDebuggerCommandArguments>4 0 0 C:\Users\ngariepy\Documents\UdeS\T4\Keysight\NLSTEST\Pattern\P39AE\C451\Data_2022-10-24_135934\config0.json</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>5 0.2 0.2 C:\Users\ngariepy\Documents\UdeS\T4\Keysight\W\Q294I\tl131\measureOnOff_2022-11-10_141338\config0.json</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

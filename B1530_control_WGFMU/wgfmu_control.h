@@ -2,37 +2,80 @@
 //Author: Pierre-Antoine Mouny
 //Date: 25/05/2021
 //Universite de Sherbrooke (3IT)
+#include <iostream>
+#include <map>
+#include <string>
+#include "wgfmu.h"
 
-
-// Methods
 /// <param name="Vpulse"> Max voltage of the pulse. </param>
 /// <param name="trise"> Time to raise to Vpulse and fall to 0V. </param>
 /// <param name="twidth"> Time spent at Vpulse, after trise. </param>
 /// <param name="tspace"> Time spent at 0V before each pulse. </param>
-typedef struct pulseshape {
-	double Vpulse;
-	double trise;
-	double twidth;
-	double tspace;
+class pulseshape {
+	public:
+		double Vpulse;
+		double trise;
+		double twidth;
+		double tspace;
+		double t_singlepusle(){
+			return 2 * trise + twidth + tspace;
+		}
 };
 
 /// <param name="PUND_decade"> Number of cycle done before this PUND measure. 10^decade = Qty of aging pulses </param>
 /// <param name="PUND_number"> Number of the pusle WITHIN the decade (0 to 9) </param>
+/// <param name="PUND_maxdecade"> Used as stopping point for PUND_decade if it's incremented within c++ instead of python. </param>
 /// <param name="aging_shape"> Shape of the aging cycles. </param>
 /// <param name="PUND_shape"> Shape of the PUND pulses. </param>
 /// <param name="npoints"> How many points to capture in the current measurement. </param>
 /// <param name="currentrange"> Current range to be used, in µA. </param>
 /// <param name="path"> Folder where all the .csv data will be output. </param>
-typedef struct PUND_args {
-	int PUND_decade;
-	int PUND_number;
+struct PROG_args {
+	// PUND
+	double PUND_decade;
+	double PUND_number;
+	double PUND_maxdecade; 
 	pulseshape aging_shape;
 	pulseshape PUND_shape;
+	
+	// LTP, LTD
+	double Vwritepos;
+	double Vwriteneg;
+	double Vread;
+	double twrite;
+
+	// Generic
 	int npoints;
 	double currentrange;
 	std::string path;
 };
 
+struct premadesequence {
+	std::string topsequence;
+	std::string botsequence;
+	double t_singlepusle;
+};
+
+class ofstreamhighpres {
+	public:
+		ofstreamhighpres(std::string filename) : stream(filename, std::ofstream::app) {
+			stream << std::setprecision(std::numeric_limits<double>::digits10 + 1);
+			//stream << std::scientific;
+		}
+		~ofstreamhighpres() {
+			stream.flush();
+			stream.close();
+		}
+		std::ofstream stream;
+};
+
+struct getAllresult {
+	std::vector<double> time;
+	std::vector<double> voltage;
+	std::vector<double> current;
+};
+
+// Methods
 double read_resistance(double, double, int, int, double, double, const char*);
 void write_resistance(double, double, int, int);
 void write_resistance_triangle(double, double, int, int);
@@ -61,12 +104,37 @@ void PVS(double , double , double , double , double , int , const char*);
 const char* get_timestamp(int, const char*);
 
 // Ferro / Pund specific funcitons
-void parseargs(int argc, char* argv[], PUND_args* args);
-bool checkargs(PUND_args* args);
+void parseargs(int argc, char* argv[], PROG_args* args);
+bool checkargs(const PROG_args& args);
+int getAgingCycles(int decade, bool* initialize);
+int getCycle(int decade, int number);
+
+void enduranceTest(PROG_args args);
+void singlePUND(PROG_args args, bool init);
+void partialSwitching(PROG_args args);
+void measureOnOff(PROG_args args);
+void LTD_LTP_voltage(PROG_args args);
+void LTD_LTP_puslewidth(PROG_args args);
+void LTP_LTD_newversion(PROG_args args, bool varPulsewidth);
+void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args args, bool varPulsewidth);
+
 void aging_pulse(pulseshape shape, std::string name, double count, bool initialize);
+void executePulse(pulseshape shape, const char* name, int count, bool initialize);
+void maxaveragePulse(double Vpulse, int npoints);
+premadesequence maxaveragePulse2(double Vpulse); // Similar to above, always 1 point, doesn't add the sequence immediatly
+void addPremadeSequence(premadesequence seq, int count);
 void PUND_pulse(pulseshape shape, int npoints, bool half);
 void init_session(double range, int mode);
+
 void execute_and_save(std::string filename);
+double execute_getRes(double* voltage_out, double* current_out);
+void execute_getAll(getAllresult* res);
+void writeLTPLTDresults(ofstreamhighpres& ofs, int CycleID,double writevoltage, double writetime, double readvoltage, double voltage, double current);
+
+
+
+
+
 
 
 //Global parameters
@@ -132,8 +200,37 @@ static const double R_L = 1;
 //WGFMU ALWG specs
 static const double WGFMU_t_min_segment = 5e-09; // Minimum lenght of any vector in a waveform pattern
 static const double WGFMU_t_min_measure = 10e-09; // Minimum sample time in a measure event (datasheet says 5ns, but gets quantized to 10ns automatically)
-static const double WGFMU_t_min_averaging = 10e-09; // Minimum averaging time
+static const double WGFMU_t_min_average = 10e-09; // Minimum averaging time (can also be 0, where there is no averaging)
+static const double WGFMU_t_max_average = 20e-3; // Maximum averaging time (strictly speaking its 20.971512e-6)
+static const double WGFMU_t_min_rise_PG = 30e-09; // Minimum rise time in PG mode
+static const std::map<int, double> WGFMU_bandwith_PG = { // key = current range in µA, val = bandwith in Hz
+	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 80e3},
+	{WGFMU_MEASURE_CURRENT_RANGE_10UA,600e3},
+	{WGFMU_MEASURE_CURRENT_RANGE_100UA,2.4e6},
+	{WGFMU_MEASURE_CURRENT_RANGE_1MA,8e6},
+	{WGFMU_MEASURE_CURRENT_RANGE_10MA,16e6} }; 
+static const std::map<int, double> WGFMU_t_min_rise_IV = { // key = current range in µA, val = t in s, specs for 0 to 5V
+	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 2e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_10UA,4.5e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_100UA,600e-9},
+	{WGFMU_MEASURE_CURRENT_RANGE_1MA,250e-9},
+	{WGFMU_MEASURE_CURRENT_RANGE_10MA,80e-9} };
+static const std::map<int, double> WGFMU_t_min_pulsewidth_IV = { // key = current range in µA, val = t in s
+	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 115e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_10UA,14.5e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_100UA,1.6e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_1MA,500e-9},
+	{WGFMU_MEASURE_CURRENT_RANGE_10MA,180e-9} };
+static const std::map<int, double> WGFMU_t_settle_IV = { // key = current range in µA, val = t in s
+	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 80e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_10UA,10e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_100UA,1e-6},
+	{WGFMU_MEASURE_CURRENT_RANGE_1MA,250e-9},
+	{WGFMU_MEASURE_CURRENT_RANGE_10MA,100e-9} };
 
 //NLS parameters
 const struct pulseshape NLS_cycle= { -3, 50e-09, 50e-6, 50e-6 };
 const struct pulseshape NLS_halfPUND = { 3, 50e-6, 0, 50e-6 };
+
+//Ferro resistance and on-off params
+const double t_measure_blank = 20e-3; // 20 ms before starting to measure current in a resistance test, to let the transiants pass
