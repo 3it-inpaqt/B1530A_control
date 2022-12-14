@@ -2,7 +2,9 @@
 //Author: Pierre-Antoine Mouny
 //Date: 25/05/2021
 //Universite de Sherbrooke (3IT)
+#include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <map>
 #include <string>
 #include "wgfmu.h"
@@ -113,6 +115,7 @@ void enduranceTest(PROG_args args);
 void singlePUND(PROG_args args, bool init);
 void partialSwitching(PROG_args args);
 void measureOnOff(PROG_args args);
+void measureOnOffNoAging(PROG_args args);
 void LTD_LTP_voltage(PROG_args args);
 void LTD_LTP_puslewidth(PROG_args args);
 void LTP_LTD_newversion(PROG_args args, bool varPulsewidth);
@@ -120,7 +123,7 @@ void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args arg
 
 void aging_pulse(pulseshape shape, std::string name, double count, bool initialize);
 void executePulse(pulseshape shape, const char* name, int count, bool initialize);
-void maxaveragePulse(double Vpulse, int npoints);
+void maxaveragePulse(double Vpulse, std::string name, int npoints);
 premadesequence maxaveragePulse2(double Vpulse); // Similar to above, always 1 point, doesn't add the sequence immediatly
 void addPremadeSequence(premadesequence seq, int count);
 void PUND_pulse(pulseshape shape, int npoints, bool half);
@@ -132,10 +135,9 @@ void execute_getAll(getAllresult* res);
 void writeLTPLTDresults(ofstreamhighpres& ofs, int CycleID,double writevoltage, double writetime, double readvoltage, double voltage, double current);
 
 
-
-
-
-
+premadesequence PUND_pulse2(pulseshape shape, int npoints, bool half, int* npointsreal);
+void save_splitPUND(const getAllresult& res, int npoints, int decade, std::string basepath);
+void better_NLS(PROG_args args);
 
 //Global parameters
 static const char* folder_path = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\";
@@ -229,8 +231,8 @@ static const std::map<int, double> WGFMU_t_settle_IV = { // key = current range 
 	{WGFMU_MEASURE_CURRENT_RANGE_10MA,100e-9} };
 
 //NLS parameters
-const struct pulseshape NLS_cycle= { -3, 50e-09, 50e-6, 50e-6 };
-const struct pulseshape NLS_halfPUND = { 3, 50e-6, 0, 50e-6 };
+const struct pulseshape NLS_cycle= { 3, 50e-09, 50e-6, 50e-6 };
+const struct pulseshape NLS_halfPUND = { -3, 50e-6, 0, 50e-6 };
 
 //Ferro resistance and on-off params
 const double t_measure_blank = 20e-3; // 20 ms before starting to measure current in a resistance test, to let the transiants pass
