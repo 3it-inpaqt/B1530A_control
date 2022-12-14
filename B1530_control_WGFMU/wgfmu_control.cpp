@@ -459,8 +459,7 @@ void save_splitPUND(const getAllresult& res, int npoints, int decade, std::strin
     }
 
 };
-void saydone() {};
-void alldone() {};
+
 premadesequence getVide(double tvide) {
     WGFMU_createPattern("videtop", 0);
     WGFMU_addVector("videtop", tvide, 0);
@@ -508,14 +507,12 @@ void better_NLS(PROG_args args) {
         //execute_and_save(args.path + "//PUND_0_" + std::to_string(i) + ".csv");
         execute_getAll(&res);
         save_splitPUND(res, npointsreal, i, args.path);
-        saydone();
 
         WGFMU_clear();
         res.time.clear();
         res.voltage.clear();
         res.current.clear();
     }
-    alldone();
 }
 
 /// <summary>
