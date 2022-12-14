@@ -496,10 +496,10 @@ void better_NLS(PROG_args args) {
             addPremadeSequence(vide, 1);
 
             writepulse.twidth = pulsewidths[j];
-            aging_pulse(NLS_cycle, "NLS_cycle" + std::to_string(i) + "_" + std::to_string(j) , 2, false); // Standard pulse, using const params
+            add_square_pulse(NLS_cycle, "NLS_cycle" + std::to_string(i) + "_" + std::to_string(j) , 2, false, true); // Standard pulse, using const params
 
             // Not aging, just the specified NLS
-            aging_pulse(writepulse, "NLS_params" + std::to_string(i) + "_" + std::to_string(j), 1, true); // "The NLS", using params from args
+            add_square_pulse(writepulse, "NLS_params" + std::to_string(i) + "_" + std::to_string(j), 1, false, false); // "The NLS", using params from args
             
             addPremadeSequence(seq, 1);
             std::cout << i << "_" << j << std::endl;
@@ -530,7 +530,7 @@ void enduranceTest(PROG_args args){
     int cycle_count = getAgingCycles((int)args.PUND_decade, &initialize);
 
     init_session(args.currentrange, WGFMU_OPERATION_MODE_FASTIV);
-    aging_pulse(args.aging_shape, "aging", cycle_count, initialize);
+    add_square_pulse(args.aging_shape, "aging", cycle_count, initialize, !initialize); // init, !init. When init true : reversed half pulse, when false, aging pulse 
     PUND_pulse(args.PUND_shape, args.npoints, false);
     execute_and_save(filename);
 
@@ -555,7 +555,7 @@ void singlePUND(PROG_args args, bool init){
 
     init_session(args.currentrange, WGFMU_OPERATION_MODE_FASTIV);
     if (init) {
-        aging_pulse(args.aging_shape, "aging", 1, true);
+        add_square_pulse(args.aging_shape, "aging", 1, true, false);
     }
     PUND_pulse(args.PUND_shape, args.npoints, false);
     execute_and_save(filename);
@@ -574,16 +574,25 @@ void partialSwitching(PROG_args args){
     std::string filename = args.path + "\\PUND_" + std::to_string((int)args.PUND_decade)
         + "_" + std::to_string((int)args.PUND_number) + ".csv";
 
+    pulseshape NLS_cycle_dir = NLS_cycle;
+    pulseshape NLS_halfPUND_dir = NLS_halfPUND;
+    if (args.aging_shape.Vpulse > 0) { //Needs to be the opposite direction of the write pulse
+        NLS_halfPUND_dir.Vpulse *= -1;
+    }
+    else {
+        NLS_cycle_dir.Vpulse *= -1;
+    }
+
     init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
-    aging_pulse(NLS_cycle, "NLS_cycle", 2, false); // Standard pulse, using const params
-    aging_pulse(args.aging_shape, "NLS_params", 1, true); // "The NLS", using params from args
+    add_square_pulse(NLS_cycle_dir, "NLS_cycle", 2, false, true); // Aging pulse, using const params
+    add_square_pulse(args.aging_shape, "NLS_params", 1, false, false); // "The NLS", using params from args
     WGFMU_execute();
     WGFMU_exportAscii((filename + "WGFMUsettingsbefore.csv").c_str());
 
     WGFMU_clear();
     //WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
 
-    PUND_pulse(NLS_halfPUND, args.npoints, true); // Do half a PUND only. inverted w/ respect to last aging pulse
+    PUND_pulse(NLS_halfPUND_dir, args.npoints, true); // Do half a PUND only. inverted w/ respect to last aging pulse
     WGFMU_exportAscii((filename + "WGFMUsettingsafter.csv").c_str());
     execute_and_save(filename);
 }
@@ -611,7 +620,8 @@ void measureOnOff(PROG_args args) {
     pulseshape writeshape = NLS_cycle; // TODO: Get a good pulseshape for the write, NLS_cycle seems ok for now
     writeshape.Vpulse = writevoltagepos;
     writeshape.twidth = args.twrite;
-   
+    pulseshape cycleshape = writeshape;
+
     bool initialize = false; //default is false, getAgingCycles will update it if necessary
     int cycle_count = 0;
    
@@ -620,23 +630,23 @@ void measureOnOff(PROG_args args) {
         cycle_count = getAgingCycles(decade, &initialize);
         for (int number = 2; number<=10; number++){
             if (decade == 0 || decade == 1) { number = 0; }
-            executePulse(writeshape, "Cycle", cycle_count, initialize);
+            executePulse(cycleshape, "Cycle", cycle_count, false, true);
 
             for (double writevoltage : {writevoltagepos, writevoltageneg}) { //Mult allows the inversion of write voltage
                 writeshape.Vpulse = writevoltage;
-                executePulse(writeshape, "write", 1, true); // Write pulse executed here
+                executePulse(writeshape, "write", 1, false, false); // Write pulse executed here
 
                 WGFMU_clear();
                 WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-                for (int mult2 : {1, -1}) {
-                    maxaveragePulse(mult2*readvoltage, "read" + std::to_string(mult2), 1); // "1" used to be variable "args.npoints"
+                for (int mult : {1, -1}) {
+                    maxaveragePulse(mult*readvoltage, "read" + std::to_string(mult), 1); // "1" used to be variable "args.npoints"
                     resistance = execute_getRes(&voltage, &current); // Read pulse executed here
                     ofs << getCycle(decade, number) << ';'
                         << decade << ';'
                         << number << ';'
                         << writeshape.Vpulse << ';'
                         << writeshape.twidth << ';'
-                        << mult2*readvoltage << ';'
+                        << mult*readvoltage << ';'
                         << resistance << ';'
                         << voltage << ';'
                         << current << std::endl;
@@ -669,14 +679,15 @@ void measureOnOffNoAging(PROG_args args) {
     pulseshape writeshape = NLS_cycle; // TODO: Get a good pulseshape for the write, NLS_cycle seems ok for now
     writeshape.Vpulse = writevoltagepos;
     writeshape.twidth = args.twrite;
+    pulseshape cycleshape = writeshape;
 
     double voltage, current;
     for (int i = 0; i < 20; i++) {
-        executePulse(writeshape, "Cycle", 1, false);
+        executePulse(writeshape, "Cycle", 1, false, true);
 
         for (double writevoltage : {writevoltagepos, writevoltageneg}) { //Mult allows the inversion of write voltage
             writeshape.Vpulse = writevoltage;
-            executePulse(writeshape, "write", 1, true); // Write pulse executed here
+            executePulse(cycleshape, "write", 1, false, false); // Write pulse executed here
 
             WGFMU_clear();
             WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
@@ -716,7 +727,7 @@ void LTD_LTP_voltage(PROG_args args) {
     // Reset before starting
     init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
     writeshape.Vpulse = args.Vwriteneg; // Set to negative max
-    executePulse(writeshape, "Init", 1, true);
+    executePulse(writeshape, "Init", 1, true, false);
 
     double voltage, current, resistance, vstep; // Values to be used in loop
     int CycleID = 0;
@@ -724,7 +735,7 @@ void LTD_LTP_voltage(PROG_args args) {
         for (double vstop : {args.Vwritepos, args.Vwriteneg}) {
             vstep = vstop / args.npoints;
             for (writeshape.Vpulse = vstep; abs(writeshape.Vpulse) <= abs(vstop); writeshape.Vpulse += vstep) {
-                executePulse(writeshape, "write", 1, true);
+                executePulse(writeshape, "write", 1, false, false);
 
                 // Send read pulse in fast IV
                 WGFMU_clear();
@@ -753,7 +764,7 @@ void LTD_LTP_puslewidth(PROG_args args){
     // Reset before starting
     init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
     writeshape.Vpulse = args.Vwriteneg; // Set to negative max
-    executePulse(writeshape, "Init", 1, true);
+    executePulse(writeshape, "Init", 1, true, false);
 
     double voltage = 0, current = 0, resistance = 0; // Values to be used in loop
     double tstep = args.twrite / args.npoints;
@@ -762,7 +773,7 @@ void LTD_LTP_puslewidth(PROG_args args){
         for (double Vpulse : {args.Vwritepos, args.Vwriteneg}) {
             writeshape.Vpulse = Vpulse;
             for (writeshape.twidth = tstep; abs(writeshape.twidth) <= abs(args.twrite); writeshape.twidth += tstep) {
-                executePulse(writeshape, "write", 1, true); // Send write pulse
+                executePulse(writeshape, "write", 1, false, false); // Send write pulse
 
                 // Send read pulse in fast IV
                 WGFMU_clear();
@@ -836,8 +847,7 @@ void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args arg
             writepulse.Vpulse = param;
         }
 
-        aging_pulse(writepulse, writebasename + std::to_string(param), 1, true);
-        
+        add_square_pulse(writepulse, writebasename + std::to_string(param), 1, false, false);
         // Add existing read pulse to the sequence
         addPremadeSequence(seq, 1);
     }
@@ -1056,9 +1066,9 @@ void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomCh
 /// </summary>
 /// <param name="shape"> Struct with the shape of a single, positive pulse. </param>
 /// <param name="count"> Number aging cycles to do. If count = 1, there is 1 positive AND 1 negative pulse. </param> 
-void aging_pulse(pulseshape shape, std::string name, double count, bool initialize) {
-    if (count == 0 && !initialize) return; // Don't cycle, don't initialise
-    int mult = (initialize) ? -1 : 1; //If you're only initializing, only output negative half cycle
+void add_square_pulse(pulseshape shape, std::string name, double count, bool invertAmplitude, bool oppositePulses) {
+    if (count == 0 ) return; // Don't cycle at all
+    int mult = (invertAmplitude) ? -1 : 1; //If you're only initializing, only output negative half cycle
 
     std::string gnd = name + "gnd";
     std::string base = name + "pos";
@@ -1071,12 +1081,12 @@ void aging_pulse(pulseshape shape, std::string name, double count, bool initiali
     WGFMU_addVector(base.c_str(), shape.trise, mult * shape.Vpulse); // Rise to Vpulse
     if (shape.twidth != 0) WGFMU_addVector(base.c_str(), shape.twidth, mult * shape.Vpulse); // Hold
     WGFMU_addVector(base.c_str(), shape.trise, 0); // Return to 0
-    if (initialize) {
-        WGFMU_createMultipliedPattern(name.c_str(), base.c_str(), 1, 1); // literally just a copy, so that "name" exists
-    }
-    else {
+    if (oppositePulses) {
         WGFMU_createMultipliedPattern(neg.c_str(), base.c_str(), 1, -1); // Create opposite
         WGFMU_createMergedPattern(name.c_str(), base.c_str(), neg.c_str(), WGFMU_AXIS_TIME); // Put opposites end to end
+    }
+    else {
+        WGFMU_createMultipliedPattern(name.c_str(), base.c_str(), 1, 1); // Just a copy, otherwise the pulse named "name.c_str()" doen't exist
     }
         
     // Create gnd for botchannel, same length, but all voltages are 0
@@ -1101,12 +1111,12 @@ void aging_pulse(pulseshape shape, std::string name, double count, bool initiali
 
 
 /// <summary>
-/// Immediate execution of a "aging_pulse", in PG mode. All params are the same as "aging_pulse"
+/// Immediate execution of a "add_square_pulse", in PG mode. All params are the same as "add_square_pulse"
 /// </summary> 
-void executePulse(pulseshape shape, const char* name, int count, bool initialize) {
+void executePulse(pulseshape shape, const char* name, int count, bool invertAmplitude, bool oppositePulses) {
     WGFMU_clear();
     WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_PG);
-    aging_pulse(shape, name, count, initialize); // Negative half cycle
+    add_square_pulse(shape, name, count, invertAmplitude, oppositePulses); // Negative half cycle
     WGFMU_execute();
 }
 

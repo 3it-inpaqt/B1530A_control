@@ -121,8 +121,8 @@ void LTD_LTP_puslewidth(PROG_args args);
 void LTP_LTD_newversion(PROG_args args, bool varPulsewidth);
 void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args args, bool varPulsewidth);
 
-void aging_pulse(pulseshape shape, std::string name, double count, bool initialize);
-void executePulse(pulseshape shape, const char* name, int count, bool initialize);
+void add_square_pulse(pulseshape shape, std::string name, double count, bool invertAmplitude, bool oppositePulses);
+void executePulse(pulseshape shape, const char* name, int count, bool invertAmplitude, bool oppositePulses);
 void maxaveragePulse(double Vpulse, std::string name, int npoints);
 premadesequence maxaveragePulse2(double Vpulse); // Similar to above, always 1 point, doesn't add the sequence immediatly
 void addPremadeSequence(premadesequence seq, int count);
@@ -232,7 +232,7 @@ static const std::map<int, double> WGFMU_t_settle_IV = { // key = current range 
 
 //NLS parameters
 const struct pulseshape NLS_cycle= { 3, 50e-09, 50e-6, 50e-6 };
-const struct pulseshape NLS_halfPUND = { -3, 50e-6, 0, 50e-6 };
+const struct pulseshape NLS_halfPUND = { 3, 50e-6, 0, 50e-6 };
 
 //Ferro resistance and on-off params
 const double t_measure_blank = 20e-3; // 20 ms before starting to measure current in a resistance test, to let the transiants pass

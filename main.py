@@ -149,17 +149,17 @@ def plt_resistances(data, paths, scale='log'):
     ax = fig.add_subplot(111)
     side1 = data.loc[data['Vwrite'] >= 0]
     side2 = data.loc[data['Vwrite'] < 0]
-    ax.plot(side1.loc[side1['Vread'] >= 0].Resistance, 'o-', color='red')
-    ax.plot(side1.loc[side1['Vread'] < 0].Resistance, 'o-', color='magenta')
+    ax.plot(side1.loc[side1['Vread'] >= 0].Resistance, 'o-', color='green')
+    ax.plot(side1.loc[side1['Vread'] < 0].Resistance, 'o-', color='lime')
     if len(side2) != 0:
-        ax.plot(side2.loc[side1['Vread'] >= 0].Resistance, 'o-', color='green')
-        ax.plot(side2.loc[side1['Vread'] < 0].Resistance, 'o-', color='lime')
+        ax.plot(side2.loc[side1['Vread'] >= 0].Resistance, 'o-', color='red')
+        ax.plot(side2.loc[side1['Vread'] < 0].Resistance, 'o-', color='magenta')
     
     #ax.set_xscale(scale)
     fig.suptitle("Evolution of Resistance and ON/OFF")
     ax.set_xlabel("Cycle")
     ax.set_ylabel("Resistance (Ohms)")
-    ax.legend(["W-,R+", "W-,R-", "W+,R+", "W+,R-"])
+    ax.legend(["W+,R+", "W+,R-", "W-,R+", "W-,R-"])
 
     plt.tight_layout()
     fig.show()
@@ -171,14 +171,14 @@ def plt_LTDLTP(data, paths, mode, scale='log'):
     ax = fig.add_subplot(111)
     side1 = data.loc[data['Vwrite'] >= 0]
     side2 = data.loc[data['Vwrite'] < 0]
-    ax.plot(side1.Resistance, 'o-', color='red')
-    ax.plot(side2.Resistance, 'o-', color='green')
+    ax.plot(side1.Resistance, 'o-', color='green')
+    ax.plot(side2.Resistance, 'o-', color='red')
     
     ax.set_xscale(scale)
     fig.suptitle(str(mode))
     ax.set_xlabel("Cycle")
     ax.set_ylabel("Resistance (Ohms)")
-    ax.legend(["negative", "positive"])
+    ax.legend(["positive", "negative"])
 
     plt.tight_layout()
     fig.show()
