@@ -119,7 +119,7 @@ void measureOnOffNoAging(PROG_args args);
 void LTD_LTP_voltage(PROG_args args);
 void LTD_LTP_puslewidth(PROG_args args);
 void LTP_LTD_newversion(PROG_args args, bool varPulsewidth);
-void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args args, bool varPulsewidth);
+void addLTP_LTD_pulses(const std::vector<double>& params, PROG_args args, bool varPulsewidth);
 
 void add_square_pulse(pulseshape shape, std::string name, double count, bool invertAmplitude, bool oppositePulses);
 void executePulse(pulseshape shape, const char* name, int count, bool invertAmplitude, bool oppositePulses);

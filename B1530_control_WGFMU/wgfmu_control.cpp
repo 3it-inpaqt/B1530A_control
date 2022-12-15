@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
             //LTD_LTP_voltage(args);
         }
         if (*argv[1] == '7') { //LTD_LTP_puslewidth
-            LTP_LTD_newversion(args, false);            
+            LTP_LTD_newversion(args, true);            
             //LTD_LTP_puslewidth(args);
         }
     }
@@ -691,15 +691,15 @@ void measureOnOffNoAging(PROG_args args) {
 
             WGFMU_clear();
             WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-            for (int mult2 : {1, -1}) {
-                maxaveragePulse(mult2 * readvoltage, "read" + std::to_string(mult2), 1); // "1" used to be variable "args.npoints"
+            for (int mult : {1, -1}) {
+                maxaveragePulse(mult * readvoltage, "read" + std::to_string(mult), 1); // "1" used to be variable "args.npoints"
                 resistance = execute_getRes(&voltage, &current); // Read pulse executed here
                 ofs << i << ';'
                     << 0 << ';'
                     << i << ';'
                     << writeshape.Vpulse << ';'
                     << writeshape.twidth << ';'
-                    << mult2 * readvoltage << ';'
+                    << mult * readvoltage << ';'
                     << resistance << ';'
                     << voltage << ';'
                     << current << std::endl;
@@ -803,12 +803,13 @@ void LTP_LTD_newversion(PROG_args args, bool varPulsewidth) {
             // Determine step size for params based on measurement type
             if (varPulsewidth) { step = args.twrite / args.npoints; }
             else { step = vstop / args.npoints; }
+
             for (int i = 1; i <= args.npoints; i++) {
                 params.push_back(i * step); // Generate the actual list here
-                //params.push_back(1*10e-5*i); // Generate the actual list here
+                //params.push_back(1*10e-5*i); // Add 0V pulses in between
             }
 
-            addLTP_LTD_fastrangechange(params, args, varPulsewidth); // execute a cycle of either LTP or LTD
+            addLTP_LTD_pulses(params, args, varPulsewidth); // execute a cycle of either LTP or LTD
 
             execute_getAll(&res); // Will append data to res, not overwrite it
             offset = res.voltage.size() - params.size(); // Size of voltage/current get bigger by one "params.size()" at every LTPLTD. So address it form its end - params.size() 
@@ -830,7 +831,7 @@ void LTP_LTD_newversion(PROG_args args, bool varPulsewidth) {
     }
 }
 
-void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args args, bool varPulsewidth) {
+void addLTP_LTD_pulses(const std::vector<double>& params, PROG_args args, bool varPulsewidth) {
     pulseshape writepulse = NLS_cycle;
     writepulse.tspace = t_measure_blank; // Semble aider d'avoir un peut de délai entre les pulses
 
@@ -846,8 +847,7 @@ void addLTP_LTD_fastrangechange(const std::vector<double>& params, PROG_args arg
         else {
             writepulse.Vpulse = param;
         }
-
-        add_square_pulse(writepulse, writebasename + std::to_string(param), 1, false, false);
+        add_square_pulse(writepulse, writebasename + std::to_string(param*100), 1, false, false);
         // Add existing read pulse to the sequence
         addPremadeSequence(seq, 1);
     }
@@ -1234,6 +1234,7 @@ void PUND_pulse(pulseshape shape, int npoints, bool half) {
 void init_session(double currentrange, int mode) {
     WGFMU_openSession("GPIB0::17::INSTR"); //18
     WGFMU_initialize();
+    WGFMU_clear();
 
     WGFMU_setOperationMode(topChannel, mode);
     WGFMU_setMeasureVoltageRange(topChannel, WGFMU_MEASURE_VOLTAGE_RANGE_5V);

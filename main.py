@@ -19,12 +19,12 @@ import time
 
 # Params
 # Data output location
-Material= 'TiN'
+Material= 'W'
 #Motif= 'Pattern'
 Motif= ''
 #sample= "P39AE"
-sample= "Q277CC"
-FTJ = "mr01"
+sample= "Q294A"
+FTJ = "tr010"
 print(FTJ)
 
 class Mode(Enum): # Enum values correspond to WGFMU.exe args
@@ -34,18 +34,18 @@ class Mode(Enum): # Enum values correspond to WGFMU.exe args
     measureOnOff = 5
     LTD_LTP_voltage = 6
     LTD_LTP_pulsewidth = 7
-mode = Mode.endurancePUND
+mode = Mode.NLS
 
 # Mixed use...
-Decade_start = 5 # Start endurance type measurements, also the filename in "Single" measurements
-Decade_stop = 6 # Endpoint of "endurance type" measurements, nb of times to do LTP_LTD.
+Decade_start = 0 # Start endurance type measurements, also the filename in "Single" measurements
+Decade_stop = 2 # Endpoint of "endurance type" measurements, nb of times to do LTP_LTD.
 singleNumber = 1  # For "Single" measurements
 PROG_args = {
     "PUND_decade":Decade_stop,
     "currentrange":1000, # in µA, min = 1, max = 10000
     "npoints":800, # Affects PUND, LTP/LTD, but not On/Off 
     "PUND_shape":{ # PUND
-        "Vpulse": 1.5,
+        "Vpulse": 3,
         "trise": 50e-6, #rise time in s
         "twidth": 0, #width of the pund pulse in s
         "tspace": 50e-6 #time between pulses in s
@@ -56,20 +56,20 @@ PROG_args = {
         "twidth":50e-6, #pulse width in s
         "tspace":10e-6 #time between pulses in s
     },
-    "Vwritepos":1.5, # For var voltage : max vwrite. For var pulse : value used (assymmetric +/-)
-    "Vwriteneg":-1.5, # For var voltage : max vwrite. For var pulse : value used (assymmetric +/-)
-    "Vread":-0.1, # Read pulse voltage
+    "Vwritepos":3, # For var voltage : max vwrite. For var pulse : value used (assymmetric +/-)
+    "Vwriteneg":-3, # For var voltage : max vwrite. For var pulse : value used (assymmetric +/-)
+    "Vread":0.1, # Read pulse voltage
     "twrite":50e-6 # For var voltage : value used. For var pulse : max tpulse (symmetric +/-)
 }
 
 # NLS only
 NLS_t_start = 50e-9
 NLS_t_stop = 100e-3
-#NLS_voltages = [-0.4, -0.6, -0.8]
-NLS_voltages = [0.6, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 2, 2.2, 2.5]
+NLS_voltages = [-0.4, -0.6, -0.8]
+#NLS_voltages = [0.6, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 2, 2.2, 2.5]
 #NLS_voltages = [0.9, 1.1, 1.3, 1.4, 1.6]
 NLS_voltages = np.multiply(NLS_voltages, -1)
-NLS_pulse_widths = np.logspace(np.log10(NLS_t_start), np.log10(NLS_t_stop), 60)
+NLS_pulse_widths = np.logspace(np.log10(NLS_t_start), np.log10(NLS_t_stop), 10)
 
 #----------------------------------------------------------------------------------------------------------------------------------
 # Classes
