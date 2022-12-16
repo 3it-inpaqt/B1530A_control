@@ -39,12 +39,15 @@ struct PROG_args {
 	double PUND_maxdecade; 
 	pulseshape aging_shape;
 	pulseshape PUND_shape;
+	pulseshape NLS_cycle_shape;
+	pulseshape NLS_PUND_read_shape;
 	
-	// LTP, LTD
+	// LTP, LTD, ON/OFF
 	double Vwritepos;
 	double Vwriteneg;
 	double Vread;
 	double twrite;
+	double tread;
 
 	// Generic
 	int npoints;
@@ -123,8 +126,8 @@ void addLTP_LTD_pulses(const std::vector<double>& params, PROG_args args, bool v
 
 void add_square_pulse(pulseshape shape, std::string name, double count, bool invertAmplitude, bool oppositePulses);
 void executePulse(pulseshape shape, const char* name, int count, bool invertAmplitude, bool oppositePulses);
-void maxaveragePulse(double Vpulse, std::string name, int npoints);
-premadesequence maxaveragePulse2(double Vpulse); // Similar to above, always 1 point, doesn't add the sequence immediatly
+void maxaveragePulse(double Vpulse, double tread, std::string name);
+premadesequence maxaveragePulse2(double Vpulse, double tread); // Similar to above, always 1 point, doesn't add the sequence immediatly
 void addPremadeSequence(premadesequence seq, int count);
 void PUND_pulse(pulseshape shape, int npoints, bool half);
 void init_session(double range, int mode);
@@ -205,34 +208,32 @@ static const double WGFMU_t_min_measure = 10e-09; // Minimum sample time in a me
 static const double WGFMU_t_min_average = 10e-09; // Minimum averaging time (can also be 0, where there is no averaging)
 static const double WGFMU_t_max_average = 20e-3; // Maximum averaging time (strictly speaking its 20.971512e-6)
 static const double WGFMU_t_min_rise_PG = 30e-09; // Minimum rise time in PG mode
-static const std::map<int, double> WGFMU_bandwith_PG = { // key = current range in µA, val = bandwith in Hz
+static const std::map<int, double> WGFMU_bandwith_PG = { // key = current range index from wgfmu.h, val = bandwith in Hz
 	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 80e3},
 	{WGFMU_MEASURE_CURRENT_RANGE_10UA,600e3},
 	{WGFMU_MEASURE_CURRENT_RANGE_100UA,2.4e6},
 	{WGFMU_MEASURE_CURRENT_RANGE_1MA,8e6},
 	{WGFMU_MEASURE_CURRENT_RANGE_10MA,16e6} }; 
-static const std::map<int, double> WGFMU_t_min_rise_IV = { // key = current range in µA, val = t in s, specs for 0 to 5V
+static const std::map<int, double> WGFMU_t_min_rise_IV = { // key = current range index from wgfmu.h, val = t in s, specs for 0 to 5V
 	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 2e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_10UA,4.5e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_100UA,600e-9},
 	{WGFMU_MEASURE_CURRENT_RANGE_1MA,250e-9},
 	{WGFMU_MEASURE_CURRENT_RANGE_10MA,80e-9} };
-static const std::map<int, double> WGFMU_t_min_pulsewidth_IV = { // key = current range in µA, val = t in s
+static const std::map<int, double> WGFMU_t_min_pulsewidth_IV = { // key = current range index from wgfmu.h, val = t in s
 	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 115e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_10UA,14.5e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_100UA,1.6e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_1MA,500e-9},
 	{WGFMU_MEASURE_CURRENT_RANGE_10MA,180e-9} };
-static const std::map<int, double> WGFMU_t_settle_IV = { // key = current range in µA, val = t in s
+static const std::map<int, double> WGFMU_t_settle_IV = { // key = current range index from wgfmu.h, val = t in s
 	{WGFMU_MEASURE_CURRENT_RANGE_1UA, 80e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_10UA,10e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_100UA,1e-6},
 	{WGFMU_MEASURE_CURRENT_RANGE_1MA,250e-9},
 	{WGFMU_MEASURE_CURRENT_RANGE_10MA,100e-9} };
 
-//NLS parameters
-const struct pulseshape NLS_cycle= { 3, 50e-09, 50e-6, 50e-6 };
-const struct pulseshape NLS_halfPUND = { 3, 50e-6, 0, 50e-6 };
-
 //Ferro resistance and on-off params
-const double t_measure_blank = 20e-3; // 20 ms before starting to measure current in a resistance test, to let the transiants pass
+const struct pulseshape ONOFF_writeshape= { 0, 50e-09, 50e-6, 50e-6 }; // Voltage should be overwittern.
+const double t_measure_blank = 20e-3; // Used before the write pulse for LTD LTP measurements
+

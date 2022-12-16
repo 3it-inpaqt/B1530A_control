@@ -52,16 +52,16 @@ int main(int argc, char *argv[]) {
             //better_NLS(args);
         }
         if (*argv[1] == '5') {
-            //measureOnOff(args);
+            measureOnOff(args);
+        }
+        if (*argv[1] == '6') {
             measureOnOffNoAging(args);
         }
-        if (*argv[1] == '6') { //LTD_LTP_voltage
+        if (*argv[1] == '7') { //LTD_LTP_voltage
             LTP_LTD_newversion(args, false);
-            //LTD_LTP_voltage(args);
         }
-        if (*argv[1] == '7') { //LTD_LTP_puslewidth
-            LTP_LTD_newversion(args, true);            
-            //LTD_LTP_puslewidth(args);
+        if (*argv[1] == '8') { //LTD_LTP_puslewidth
+            LTP_LTD_newversion(args, true);
         }
     }
     else{
@@ -469,10 +469,11 @@ premadesequence getVide(double tvide) {
     return { "videtop", "videbot" };
 };
 
+/*
 void better_NLS(PROG_args args) {
     getAllresult res;
 
-    pulseshape writepulse = NLS_cycle;
+    pulseshape writepulse = ONOFF_writeshape;
 
     std::vector<double> pulsewidths; // get this from args
     double expstart = log10(50e-9);
@@ -496,7 +497,7 @@ void better_NLS(PROG_args args) {
             addPremadeSequence(vide, 1);
 
             writepulse.twidth = pulsewidths[j];
-            add_square_pulse(NLS_cycle, "NLS_cycle" + std::to_string(i) + "_" + std::to_string(j) , 2, false, true); // Standard pulse, using const params
+            add_square_pulse(ONOFF_writeshape, "ONOFF_writeshape" + std::to_string(i) + "_" + std::to_string(j) , 2, false, true); // Standard pulse, using const params
 
             // Not aging, just the specified NLS
             add_square_pulse(writepulse, "NLS_params" + std::to_string(i) + "_" + std::to_string(j), 1, false, false); // "The NLS", using params from args
@@ -514,6 +515,7 @@ void better_NLS(PROG_args args) {
         res.current.clear();
     }
 }
+*/
 
 /// <summary>
 /// Apply specified amount of aging cycles, then measure with a single PUND. Save everything in a csv.
@@ -574,25 +576,25 @@ void partialSwitching(PROG_args args){
     std::string filename = args.path + "\\PUND_" + std::to_string((int)args.PUND_decade)
         + "_" + std::to_string((int)args.PUND_number) + ".csv";
 
-    pulseshape NLS_cycle_dir = NLS_cycle;
-    pulseshape NLS_halfPUND_dir = NLS_halfPUND;
     if (args.aging_shape.Vpulse > 0) { //Needs to be the opposite direction of the write pulse
-        NLS_halfPUND_dir.Vpulse *= -1;
+        args.NLS_cycle_shape.Vpulse = abs(args.NLS_cycle_shape.Vpulse);
+        args.NLS_PUND_read_shape.Vpulse = -1 * abs(args.NLS_PUND_read_shape.Vpulse);
     }
-    else {
-        NLS_cycle_dir.Vpulse *= -1;
+    else { //Needs to be the opposite direction of the write pulse
+        args.NLS_cycle_shape.Vpulse = -1 * abs(args.NLS_cycle_shape.Vpulse);
+        args.NLS_PUND_read_shape.Vpulse = abs(args.NLS_PUND_read_shape.Vpulse);
     }
 
     init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
-    add_square_pulse(NLS_cycle_dir, "NLS_cycle", 2, false, true); // Aging pulse, using const params
-    add_square_pulse(args.aging_shape, "NLS_params", 1, false, false); // "The NLS", using params from args
+    add_square_pulse(args.NLS_cycle_shape, "NLS_cycle", 2, false, true); // NLS_cycle_shape between every measurement,to equalize the whole thing
+    add_square_pulse(args.aging_shape, "NLS_params", 1, false, false); // NLS polarisation write, using params from args (this is not aging)
     WGFMU_execute();
     WGFMU_exportAscii((filename + "WGFMUsettingsbefore.csv").c_str());
 
     WGFMU_clear();
     //WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
 
-    PUND_pulse(NLS_halfPUND_dir, args.npoints, true); // Do half a PUND only. inverted w/ respect to last aging pulse
+    PUND_pulse(args.NLS_PUND_read_shape, args.npoints, true); // Do half a PUND only. inverted w/ respect to last aging pulse
     WGFMU_exportAscii((filename + "WGFMUsettingsafter.csv").c_str());
     execute_and_save(filename);
 }
@@ -617,7 +619,7 @@ void measureOnOff(PROG_args args) {
 
     init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
 
-    pulseshape writeshape = NLS_cycle; // TODO: Get a good pulseshape for the write, NLS_cycle seems ok for now
+    pulseshape writeshape = ONOFF_writeshape; // TODO: Get a good pulseshape for the write, ONOFF_writeshape seems ok for now
     writeshape.Vpulse = writevoltagepos;
     writeshape.twidth = args.twrite;
     pulseshape cycleshape = writeshape;
@@ -639,7 +641,7 @@ void measureOnOff(PROG_args args) {
                 WGFMU_clear();
                 WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
                 for (int mult : {1, -1}) {
-                    maxaveragePulse(mult*readvoltage, "read" + std::to_string(mult), 1); // "1" used to be variable "args.npoints"
+                    maxaveragePulse(mult*readvoltage, args.tread, "read" + std::to_string(mult)); // "1" used to be variable "args.npoints"
                     resistance = execute_getRes(&voltage, &current); // Read pulse executed here
                     ofs << getCycle(decade, number) << ';'
                         << decade << ';'
@@ -676,13 +678,13 @@ void measureOnOffNoAging(PROG_args args) {
 
     init_session(args.currentrange, WGFMU_OPERATION_MODE_PG);
 
-    pulseshape writeshape = NLS_cycle; // TODO: Get a good pulseshape for the write, NLS_cycle seems ok for now
+    pulseshape writeshape = ONOFF_writeshape; // TODO: Get a good pulseshape for the write, ONOFF_writeshape seems ok for now
     writeshape.Vpulse = writevoltagepos;
     writeshape.twidth = args.twrite;
     pulseshape cycleshape = writeshape;
 
     double voltage, current;
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < args.npoints; i++) {
         executePulse(writeshape, "Cycle", 1, false, true);
 
         for (double writevoltage : {writevoltagepos, writevoltageneg}) { //Mult allows the inversion of write voltage
@@ -692,7 +694,7 @@ void measureOnOffNoAging(PROG_args args) {
             WGFMU_clear();
             WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
             for (int mult : {1, -1}) {
-                maxaveragePulse(mult * readvoltage, "read" + std::to_string(mult), 1); // "1" used to be variable "args.npoints"
+                maxaveragePulse(mult * readvoltage, args.tread, "read" + std::to_string(mult)); // "1" used to be variable "args.npoints"
                 resistance = execute_getRes(&voltage, &current); // Read pulse executed here
                 ofs << i << ';'
                     << 0 << ';'
@@ -713,6 +715,7 @@ void measureOnOffNoAging(PROG_args args) {
     WGFMU_closeSession();
 }
 
+/*
 void LTD_LTP_voltage(PROG_args args) {
     //std::string filename = args.path + "LTD_LTP_voltage.csv";
     //std::ofstream stream(filename, std::ofstream::app);
@@ -720,7 +723,7 @@ void LTD_LTP_voltage(PROG_args args) {
     ofstreamhighpres of(args.path + "LTD_LTP.csv");
     of.stream << "CycleID;Vwrite;twrite;Vread;Resistance;Vmeas;Imeas" << std::endl;
 
-    pulseshape writeshape = NLS_cycle;
+    pulseshape writeshape = ONOFF_writeshape;
     writeshape.twidth = args.twrite;
     double readvoltage = args.Vread;
 
@@ -740,7 +743,7 @@ void LTD_LTP_voltage(PROG_args args) {
                 // Send read pulse in fast IV
                 WGFMU_clear();
                 WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-                maxaveragePulse(readvoltage, "read", 1);
+                maxaveragePulse(readvoltage, args.tread, "read");
                 resistance = execute_getRes(&voltage, &current); // Read pulse executed here
                 writeLTPLTDresults(of, CycleID++, writeshape.Vpulse, writeshape.twidth, readvoltage, voltage, current);
             }
@@ -757,7 +760,7 @@ void LTD_LTP_puslewidth(PROG_args args){
     ofstreamhighpres of(args.path + "LTD_LTP.csv");
     of.stream << "CycleID;Vwrite;twrite;Vread;Resistance;Vmeas;Imeas" << std::endl;
 
-    pulseshape writeshape = NLS_cycle;
+    pulseshape writeshape = ONOFF_writeshape;
     writeshape.twidth = args.twrite;
     double readvoltage = args.Vread;
 
@@ -778,7 +781,7 @@ void LTD_LTP_puslewidth(PROG_args args){
                 // Send read pulse in fast IV
                 WGFMU_clear();
                 WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-                maxaveragePulse(readvoltage, "read", 1);
+                maxaveragePulse(readvoltage, args.tread, "read");
                 resistance = execute_getRes(&voltage, &current); // Read pulse executed here
                 writeLTPLTDresults(of, CycleID++, writeshape.Vpulse, writeshape.twidth, readvoltage, voltage, current);
             }
@@ -787,7 +790,7 @@ void LTD_LTP_puslewidth(PROG_args args){
     WGFMU_initialize();
     WGFMU_closeSession();
 }
-
+*/
 void LTP_LTD_newversion(PROG_args args, bool varPulsewidth) {
     double step; // Will be either a time or voltage step
     std::vector<double> params; // list of pulsewidths or voltages, depends on varPulsewidth
@@ -832,11 +835,11 @@ void LTP_LTD_newversion(PROG_args args, bool varPulsewidth) {
 }
 
 void addLTP_LTD_pulses(const std::vector<double>& params, PROG_args args, bool varPulsewidth) {
-    pulseshape writepulse = NLS_cycle;
-    writepulse.tspace = t_measure_blank; // Semble aider d'avoir un peut de délai entre les pulses
+    pulseshape writepulse = ONOFF_writeshape;
+    writepulse.tspace = t_measure_blank; // This delay seems to help
 
     std::string writebasename = "write";
-    premadesequence seq = maxaveragePulse2(args.Vread);
+    premadesequence seq = maxaveragePulse2(args.Vread, args.tread);
     //WGFMU_setRangeEvent(seq.botsequence.c_str(), "currentrange", 0, args.currentrange);
 
     for (auto& param : params) {
@@ -884,6 +887,19 @@ void parseargs(int argc, char* argv[], PROG_args* args){
         args->aging_shape.twidth = jargs["aging_shape"]["twidth"];
         args->aging_shape.tspace = jargs["aging_shape"]["tspace"];
     }
+    if (jargs.contains("NLS_cycle_shape")) {
+        args->NLS_cycle_shape.Vpulse = jargs["NLS_cycle_shape"]["Vpulse"];
+        args->NLS_cycle_shape.trise = jargs["NLS_cycle_shape"]["trise"];
+        args->NLS_cycle_shape.twidth = jargs["NLS_cycle_shape"]["twidth"];
+        args->NLS_cycle_shape.tspace = jargs["NLS_cycle_shape"]["tspace"];
+    }
+    if (jargs.contains("NLS_PUND_read_shape")) {
+        args->NLS_PUND_read_shape.Vpulse = jargs["NLS_PUND_read_shape"]["Vpulse"];
+        args->NLS_PUND_read_shape.trise = jargs["NLS_PUND_read_shape"]["trise"];
+        args->NLS_PUND_read_shape.twidth = jargs["NLS_PUND_read_shape"]["twidth"];
+        args->NLS_PUND_read_shape.tspace = jargs["NLS_PUND_read_shape"]["tspace"];
+    }
+
     args->PUND_shape.Vpulse = jargs["PUND_shape"]["Vpulse"];
     args->PUND_shape.trise = jargs["PUND_shape"]["trise"];
     args->PUND_shape.twidth = jargs["PUND_shape"]["twidth"];
@@ -896,6 +912,7 @@ void parseargs(int argc, char* argv[], PROG_args* args){
     args->Vwriteneg = jargs["Vwriteneg"];
     args->Vread = jargs["Vread"];
     args->twrite = jargs["twrite"];
+    args->tread = jargs["tread"];
 }
 
 /// <summary>
@@ -1126,19 +1143,16 @@ void executePulse(pulseshape shape, const char* name, int count, bool invertAmpl
 /// The width of the wave in 20ms * npoints
 /// </summary>
 /// <param name="Vpulse"> Voltage of the pusle, can be negative to measure in opposite direction.</param>
-/// <param name="npoints"> Number of points to take, each points will measure for 20ms.</param>
-void maxaveragePulse(double Vpulse, std::string name, int npoints) {
-    // Calc width needed to have the max averaging time on each point
-    double t_width = (npoints * WGFMU_t_max_average) + t_measure_blank;
-    double t_start_meas = WGFMU_t_min_rise_PG + t_measure_blank;
-    
+/// <param name="tread"> Total read time (only second half is actually measured).</param>
+/// <param name="name"> Unique name so that multiple measurements wont enter in conflict.</param>
+void maxaveragePulse(double Vpulse, double tread, std::string name) {
     std::string gnd = name + "gnd";
 
     // Create read pulse
     WGFMU_createPattern(name.c_str(), 0);
-    WGFMU_addVector(name.c_str(), t_measure_blank, 0); // Delay is prepended
+    WGFMU_addVector(name.c_str(), tread/2, 0); // Delay is prepended
     WGFMU_addVector(name.c_str(), WGFMU_t_min_rise_PG, Vpulse); // Rise to Vpulse
-    WGFMU_addVector(name.c_str(), t_width, Vpulse); // Hold
+    WGFMU_addVector(name.c_str(), tread, Vpulse); // Hold
     WGFMU_addVector(name.c_str(), WGFMU_t_min_rise_PG, 0); // Return to 0
 
     // Create ground
@@ -1146,33 +1160,31 @@ void maxaveragePulse(double Vpulse, std::string name, int npoints) {
     WGFMU_createMergedPattern(gnd.c_str(), gnd.c_str(), name.c_str(), WGFMU_AXIS_VOLTAGE);
 
     // Create a measure even with the max allowed averaging time
-    WGFMU_setMeasureEvent(name.c_str(), "Vmeas", t_start_meas, npoints, WGFMU_t_max_average, WGFMU_t_max_average, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
-    WGFMU_setMeasureEvent(gnd.c_str(), "Imeas", t_start_meas, npoints, WGFMU_t_max_average, WGFMU_t_max_average, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
-
+    double t_start_meas = WGFMU_t_min_rise_PG + tread; // wait until after tread/2, min_rise and tread/2 before starting to measure
+    WGFMU_setMeasureEvent(name.c_str(), "Vmeas", t_start_meas, 1, tread/2, tread/2, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+    WGFMU_setMeasureEvent(gnd.c_str(), "Imeas", t_start_meas, 1, tread/2, tread/2, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+    
     WGFMU_addSequence(topChannel, name.c_str(), 1);
     WGFMU_addSequence(bottomChannel, gnd.c_str(), 1);
 }
 
-premadesequence maxaveragePulse2(double Vpulse) {
-    // Calc width needed to have the max averaging time on each point
-    double t_width = WGFMU_t_max_average + t_measure_blank;
-    double t_start_meas = WGFMU_t_min_rise_PG + t_measure_blank;
-
+premadesequence maxaveragePulse2(double Vpulse, double tread) {
     // Create read pulse
     WGFMU_createPattern("read", 0);
-    WGFMU_addVector("read", t_measure_blank, 0); // Delay is prepended
+    WGFMU_addVector("read", tread/2, 0); // Delay is prepended
     WGFMU_addVector("read", WGFMU_t_min_rise_PG, Vpulse); // Rise to Vpulse
-    WGFMU_addVector("read", t_width, Vpulse); // Hold
+    WGFMU_addVector("read", tread, Vpulse); // Hold
     WGFMU_addVector("read", WGFMU_t_min_rise_PG, 0); // Return to 0
-    double ttotal = t_measure_blank + 2 * WGFMU_t_min_rise_PG + t_width;
+    double ttotal = tread/2 + 2 * WGFMU_t_min_rise_PG + tread;
 
     // Create ground
     WGFMU_createMultipliedPattern("readgnd", "read", 1, -1); // Can't multiplty voltage by 0, so add the opposite
     WGFMU_createMergedPattern("readgnd", "readgnd", "read", WGFMU_AXIS_VOLTAGE);
 
     // Create a measure even with the max allowed averaging time
-    WGFMU_setMeasureEvent("read", "Vmeas", t_start_meas, 1, WGFMU_t_max_average, WGFMU_t_max_average, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
-    WGFMU_setMeasureEvent("readgnd", "Imeas", t_start_meas, 1, WGFMU_t_max_average, WGFMU_t_max_average, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+    double t_start_meas = WGFMU_t_min_rise_PG + tread; // wait until after tread/2, min_rise and tread/2 before starting to measure
+    WGFMU_setMeasureEvent("read", "Vmeas", t_start_meas, 1, tread/2, tread/2, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
+    WGFMU_setMeasureEvent("readgnd", "Imeas", t_start_meas, 1, tread/2, tread/2, WGFMU_MEASURE_EVENT_DATA_AVERAGED);
 
     return { "read", "readgnd", ttotal };
 }
