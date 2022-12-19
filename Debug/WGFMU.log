@@ -1,1 +1,24 @@
-﻿  WGFMU.vcxproj -> C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\Debug\WGFMU.exe
+﻿  wgfmu_control.cpp
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(38,15): warning C4477: 'scanf' : format string '%lf' requires an argument of type 'double *', but variadic argument 1 has type 'int *'
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(51,58): warning C4474: 'printf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(51,58): message : placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(126,78): warning C4474: 'printf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(126,78): message : placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(228,101): warning C4244: 'argument': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1190,103): warning C4474: 'fprintf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1190,103): message : placeholders and their parameters expect 3 variadic arguments, but 4 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1277,103): warning C4474: 'fprintf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1277,103): message : placeholders and their parameters expect 3 variadic arguments, but 4 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1315,19): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1331,15): warning C4244: 'argument': conversion from 'double' to 'DWORD', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1336,21): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1683,21): warning C4477: 'fprintf' : format string '%d' requires an argument of type 'int', but variadic argument 4 has type 'double'
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1834,130): warning C4474: 'fprintf' : too many arguments passed for format string
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1834,130): message : placeholders and their parameters expect 6 variadic arguments, but 7 were provided
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(1838,20): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(2008,19): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(520): warning C4715: 'apply_pulse_new': not all control paths return a value
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(553): warning C4715: 'extract_results': not all control paths return a value
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(2168): warning C4715: 'set_read_time': not all control paths return a value
+C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\WGFMU\B1530_control_WGFMU\wgfmu_control.cpp(2153): warning C4715: 'set_settling_time': not all control paths return a value
+  WGFMU.vcxproj -> C:\Users\moup2702\OneDrive - USherbrooke\Bureau\UdeS\Script\WGFMU_control\Debug\WGFMU.exe
