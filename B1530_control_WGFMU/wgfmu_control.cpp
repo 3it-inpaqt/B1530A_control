@@ -146,20 +146,6 @@ int main() {
         printf("Read variability with SMUs\n");
         DC_sweep(topChannelSMU, bottomChannelSMU);
     }
-    else if (choice == 7) {
-        printf("Now executing triangle multilevel programming of %d resistance states \n", nb_state);
-        const char* timestamp = get_timestamp(choice, folder_path);
-        double step_size;
-        printf("Enter step for pulse amplitude: ");
-        scanf("%lf", &step_size);
-        double V_LTP;
-        printf("Enter V_LTP: ");
-        scanf("%lf", &V_LTP);
-        double V_LTD;
-        printf("Enter V_LTD: ");
-        scanf("%lf", &V_LTD);
-        simple_triangle_convergence(LRS, HRS, V_LTD, V_LTP, step_size, timestamp);
-    }
 
     else if (choice == 8) {
     printf("Now executing write variability measurements\n");
@@ -390,40 +376,6 @@ double read_resistance(double Vpulse, double tpulse, int topChannel, int bottomC
     WGFMU_initialize();
     WGFMU_closeSession();
     return res;
-}
-
-
-void write_resistance_triangle(double Vpulse, double tpulse, int topChannel, int bottomChannel) // Triangular pulse output
-{
-
-    // OFFLINE
-    //Top electrode
-
-    WGFMU_clear();
-    WGFMU_createPattern("pulse", 0); // 0 ms, 0 V
-    WGFMU_addVector("pulse", 0.5*t_pulse, Vpulse); //100 ns rise time
-    WGFMU_addVector("pulse", 0.5*tpulse, 0);
-    WGFMU_addSequence(topChannel, "pulse", 1); //1 pulse output
-
-    //Bottom electrode
-    WGFMU_createPattern("ground", 0);
-    WGFMU_addVector("ground", 0.5*t_pulse, 0);
-    WGFMU_addVector("ground", 0.5*t_pulse, 0);
-    WGFMU_addSequence(bottomChannel, "ground", 1); //1 "pulse" output
-
-
-    // ONLINE
-    WGFMU_openSession("GPIB0::17::INSTR"); 
-    WGFMU_initialize();
-    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
-    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
-    WGFMU_setMeasureCurrentRange(topChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
-    WGFMU_connect(topChannel);
-    WGFMU_connect(bottomChannel);
-    WGFMU_execute();
-    WGFMU_waitUntilCompleted();
-    WGFMU_initialize();
-    WGFMU_closeSession();
 }
 
 void write_resistance(double Vpulse, double tpulse, int topChannel, int bottomChannel) // Square pulse voltage output
@@ -927,59 +879,6 @@ void converge_to_target(double R_target, double tol, double V_LTD, double V_LTP,
     WGFMU_closeSession();
 }
 
-void simple_triangle_convergence(double LRS, double HRS, double V_LTD, double V_LTP, double step_size, const char* file_name)//Uses triangular writing pulse
-{
-    double list_resist[nb_state];
-    for (int i = 0;i < nb_state;i++) {
-        list_resist[i] = LRS + i * (HRS - LRS) / (nb_state - 1);
-    }
-    //Multilevel programming for all resistance states
-    for (int i_state = 0; i_state < nb_state; i_state++) {
-        double R_target = list_resist[i_state];
-        printf("Target resist is %f \n", R_target);
-        double Rmax = R_target * (1 + tolerance);
-        double Rmin = R_target * (1 - tolerance);
-        double Vp = V_LTP;
-        double Vn = V_LTD;
-        int c = 0;
-        int pulse_number = 0;
-        double pulse_amp = 0;
-        double R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
-        while (c < stop) {
-            if (Rmin <= R_c && R_c <= Rmax) {
-                Vp = V_LTP;
-                Vn = V_LTD;
-                printf("Reached target resistance \n");
-                pulse_amp = 0;
-                c++;
-            }
-            else if (R_c > Rmax) {
-                write_resistance_triangle(Vp, t_pulse, topChannel, bottomChannel);
-                if (Vp < V_max) {
-                    Vp = Vp + step_size;
-                }
-                Vn = V_LTD;
-                pulse_amp = Vp;
-                printf("Apply positive pulse %f \n", Vp);
-                //c=0; //Could cause issue
-            }
-            else if (R_c < Rmin) {
-                write_resistance_triangle(Vn, t_pulse, topChannel, bottomChannel);
-                if (Vn > -V_max) {
-                    Vn = Vn - step_size;
-                }
-                Vp = V_LTP;
-                pulse_amp = Vn;
-                printf("Apply negative pulse %f \n", Vn);
-                //c=0; //Could cause issue
-            }
-            pulse_number++;
-            R_c = read_resistance(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name);
-            printf("Measured resistance is %f \n", R_c);
-        }
-    }
-    printf("End of simple multilevel programming");
-}
 
 void log_convergence(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
 {

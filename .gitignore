@@ -1,2 +1,15 @@
 
 *.txt
+Release/vc142.pdb
+Release/WGFMU.exe.recipe
+Release/WGFMU.ipdb
+Release/WGFMU.iobj
+Release/WGFMU.log
+Release/WGFMU.tlog/CL.command.1.tlog
+Release/WGFMU.tlog/CL.read.1.tlog
+Release/WGFMU.tlog/CL.write.1.tlog
+Release/WGFMU.tlog/link.command.1.tlog
+Release/WGFMU.tlog/link.read.1.tlog
+Release/WGFMU.tlog/link.write.1.tlog
+Release/WGFMU.tlog/WGFMU.lastbuildstate
+Release/wgfmu_control.obj

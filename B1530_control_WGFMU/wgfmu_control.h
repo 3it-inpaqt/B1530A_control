@@ -7,7 +7,6 @@
 // Methods
 double read_resistance(double, double, int, int, double, double, const char*);
 void write_resistance(double, double, int, int);
-void write_resistance_triangle(double, double, int, int);
 double apply_pulse_new(double, double, int, int, double, double, const char*, int, int);
 double extract_results(int, int, int, double, double, const char*);
 void simple_convergence(double, double, double, double, double, const char*);
@@ -15,7 +14,6 @@ void programming_noise(double, double, double, double, double, int, const char*)
 void simple_convergence_reverse(double, double, double, double, double, int, const char*);
 void simple_convergence_fast(double, double, double, double, double, int, const char*);
 void converge_to_target(double, double, double, double, double, const char*, int, int);
-void simple_triangle_convergence(double, double, double, double, double, const char*);
 void log_convergence(double, double, double, double, const char*);
 void log_convergence_2(double, double, double, double, const char*);
 void Gvt(double[], double[], double, double, const char*);
