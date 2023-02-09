@@ -263,7 +263,7 @@ int main() {
             puts(file_name);
             printf("\nFOLDER NAME\n");
             puts(timestamp);
-            converge_to_target(R_target, tolerance, -0.7, 0.5, 0.025, file_name, 5, 1);
+            converge_to_target(R_target, tolerance, -1.2, 1.0, 0.025, file_name, 5, 1);
             PRT(Vp, Vn, nb_pulse, file_name);;
         }
     }
@@ -334,6 +334,11 @@ int main() {
 
         fclose(fa);
 }
+    else if (choice == 20) {
+    printf("Now executing pulsed forming\n");
+    const char* timestamp = get_timestamp(20, folder_path);
+    forming(R_form, V_form, step_form, timestamp, 10, 0);
+    }
     else {
         printf("Enter a defined operation type! \n You entered %d", choice);
     }
@@ -880,6 +885,64 @@ void converge_to_target(double R_target, double tol, double V_LTD, double V_LTP,
 }
 
 
+void forming(double R_target, double V_form, double step_size, const char* file_name, int stop_read, int save)
+{
+    WGFMU_openSession("GPIB0::17::INSTR"); //18
+    WGFMU_initialize();
+    WGFMU_setOperationMode(topChannel, WGFMU_OPERATION_MODE_FASTIV);
+    WGFMU_setOperationMode(bottomChannel, WGFMU_OPERATION_MODE_FASTIV);
+    //NEED TO SELECT RANGE FOR ELECTROFORMING
+    WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1UA);
+    WGFMU_setMeasureMode(bottomChannel, WGFMU_MEASURE_MODE_CURRENT);
+    WGFMU_connect(topChannel);
+    WGFMU_connect(bottomChannel);
+    printf("Target resist is %f \n", R_target);
+    double Vp = V_form;
+    double crange = 1e-6;
+    int c = 0;
+    int pulse_number = 0;
+    double pulse_amp = 0;
+    double R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name, 1, 0);
+    while (c < stop_read) {
+        if (R_c <= R_target) {
+            Vp = V_form;
+            printf("Reached target resistance \n");
+            pulse_amp = 0;
+            c++;
+        }
+        else if (R_c > R_target) {
+            apply_pulse_new(Vp, t_pulse, topChannel, bottomChannel, pulse_amp, 0, file_name, 1, 1);
+            if (Vp < V_form_max) {
+                Vp = Vp + step_size;
+            }
+            pulse_amp = Vp;
+            printf("Apply forming pulse %f \n", Vp);
+        }
+        pulse_number++;
+        R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name, save, 0);
+        printf("Measured resistance is %f \n", R_c);
+        printf("Current range is %f \n", crange);
+        if (R_c < 1800 && crange != 1e-3) {
+            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
+            crange = 1e-3;
+        }
+        else if (R_c < 22000 && R_c > 1800 && crange != 1e-4) {
+            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+            crange = 1e-4;
+        }
+        else if (R_c < 210000 && R_c > 22000 && crange != 1e-5) {
+            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_10UA);
+            crange = 1e-5;
+        }
+        else if (R_c > 210000 && crange != 1e-6) {
+            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1UA);
+            crange = 1e-6;
+        }
+    }
+    WGFMU_initialize();
+    WGFMU_closeSession();
+}
+
 void log_convergence(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
 {
     double list_resist[nb_state];
@@ -954,6 +1017,7 @@ void log_convergence(double LRS, double HRS, double V_LTD, double V_LTP, const c
         }
     }
     printf("End of logarithmic multilevel programming");
+
 }
 
 void log_convergence_2(double LRS, double HRS, double V_LTD, double V_LTP, const char* file_name)//Logarithmic multilevel programming
@@ -1993,6 +2057,9 @@ const char* get_timestamp(int choice, const char* folder) {
     }
     else if (choice == 17) {
         strcat(file_name, "_res_list.txt");
+    }
+    else if (choice == 20) {
+        strcat(file_name, "_pulsed_forming.txt");
     }
     else if (choice == 94) {
         strcat(file_name, "_PRT");

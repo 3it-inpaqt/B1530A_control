@@ -21,6 +21,7 @@ void Gvt_pulse(int, double[], double, double, const char*);
 void Gvt_pulse_2(int, double[], double, double, const char*);
 void retention(double, double, double, double, double, const char*);
 void read_variability(double, double, double, double, double, const char*);
+void forming(double, double, double, const char*, int, int);
 void PRT(double, double, double, const char*);
 void write_variability_pulse_number(double, double, double, double, const char*, int);
 void DC_sweep(int, int);
@@ -40,8 +41,8 @@ static const char* folder_path = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measuremen
 static const char* folder_path_Gvt = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\5\\";
 static const char* path_csv = "C:\\Users\\moup2702\\Desktop\\UdeS\\Measurements\\Multilevel_programming\\multilevel_prog.txt";//The path to your CSV
 static const char* path_list_res = "C:\\Users\\moup2702\\Desktop\\UdeS\\Simulation\\Image\\Feynman_list_res_grayscale.txt";
-static const int topChannel = 201;//physical channel of WGFMU used by the probe tip placed on the top electrode
-static const int bottomChannel = 202;//physical channel of WGFMU used by the probe tip placed on the bottom electrode
+static const int topChannel = 101;//physical channel of WGFMU used by the probe tip placed on the top electrode
+static const int bottomChannel = 102;//physical channel of WGFMU used by the probe tip placed on the bottom electrode
 static const int topChannelSMU = 201;
 static const int bottomChannelSMU = 301;
 static const double V_set = 1.4; // Set voltage (DC sweep)
@@ -49,7 +50,7 @@ static const double V_reset = -1.5; //Reset voltage (DC sweep)
 static const double meas_time = 10; //Duration in second of the DC sweep
 static const double compliance_set = 0.001; //Compliance current used in DC sweeps in set operations
 static const double compliance_reset = 0.01; //Compliance current used in DC sweeps in reset operations not necessary but used as a security
-static const double t_pulse = 2E-7; //Pulse width of writing pulses
+static const double t_pulse = 5E-8; //Pulse width of writing pulses
 static const double Vr = 2E-1; //Amplitude of reading pulses
 static const double t_read = 1E-5; //Pulse width of reading pulses Warning should not be set below 1e-5 seems to lead to bad measurements otherwise
 
@@ -62,6 +63,12 @@ static const double V_max = 3.8;
 static const int stop = 20;
 static const int nb_state = 8; //Number of distinct resistance states targeted (they are equally spaced in resistance)
 static const double tolerance = 0.015;
+
+//Forming parameters
+static const double R_form = 20000; //Target resistance after forming
+static const double V_form = 3.5; //Initial pulse amplitude for forming
+static const double step_form = 0.01; //Step size for pulsed forming
+static const double V_form_max = 10; //Maximum forming voltage (10V for WGFMU)
 
 //Write variability parameters
 static const int write_varia_loop = 100000;
