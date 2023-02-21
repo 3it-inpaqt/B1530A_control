@@ -919,25 +919,29 @@ void forming(double R_target, double V_form, double step_size, const char* file_
             printf("Apply forming pulse %f \n", Vp);
         }
         pulse_number++;
+        double count = 5;
+        while (count < 5) {
+            R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name, 1, 0);
+            if (R_c < 1800 && crange != 1e-3) {
+                WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
+                crange = 1e-3;
+            }
+            else if (R_c < 22000 && R_c > 1800 && crange != 1e-4) {
+                WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
+                crange = 1e-4;
+            }
+            else if (R_c < 210000 && R_c > 22000 && crange != 1e-5) {
+                WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_10UA);
+                crange = 1e-5;
+            }
+            else if (R_c > 210000 && crange != 1e-6) {
+                WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1UA);
+                crange = 1e-6;
+            }
+        }
         R_c = apply_pulse_new(Vr, t_read, topChannel, bottomChannel, pulse_amp, 0, file_name, save, 0);
         printf("Measured resistance is %f \n", R_c);
         printf("Current range is %f \n", crange);
-        if (R_c < 1800 && crange != 1e-3) {
-            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1MA);
-            crange = 1e-3;
-        }
-        else if (R_c < 22000 && R_c > 1800 && crange != 1e-4) {
-            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_100UA);
-            crange = 1e-4;
-        }
-        else if (R_c < 210000 && R_c > 22000 && crange != 1e-5) {
-            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_10UA);
-            crange = 1e-5;
-        }
-        else if (R_c > 210000 && crange != 1e-6) {
-            WGFMU_setMeasureCurrentRange(bottomChannel, WGFMU_MEASURE_CURRENT_RANGE_1UA);
-            crange = 1e-6;
-        }
     }
     WGFMU_initialize();
     WGFMU_closeSession();
